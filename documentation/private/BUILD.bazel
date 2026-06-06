@@ -1,6 +1,7 @@
 # Implementation-detail tools. Not part of the public API.
 
-load("@python_3_12//:defs.bzl", "py_binary")
+load("@python_3_12//:defs.bzl", "py_binary", "py_test")
+load("@rules_python//python:defs.bzl", "py_library")
 load("@rfd_pip//:requirements.bzl", "requirement")
 
 package(default_visibility = ["//visibility:public"])
@@ -15,4 +16,20 @@ py_binary(
     deps = [
         requirement("fpdf2"),
     ],
+)
+
+py_test(
+    name = "render_pdf_test",
+    size = "small",
+    srcs = ["render_pdf_test.py"],
+    deps = [
+        requirement("fpdf2"),
+        ":render_lib",
+    ],
+)
+
+py_library(
+    name = "render_lib",
+    srcs = ["render.py"],
+    imports = ["."],
 )

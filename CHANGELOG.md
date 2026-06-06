@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.3]
+
+### Fixed
+
+- PDF list items (and other blocks) no longer start near the right edge and get
+  clipped. fpdf2's `multi_cell` left the X cursor at the right of a line that
+  filled the width, so the next block began there; all blocks now explicitly
+  return the cursor to the left margin. Adds a unit test guarding this.
+
 ## [0.2.2]
 
 ### Added

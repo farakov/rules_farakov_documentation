@@ -628,6 +628,18 @@ def _pdf_is_block_start(line):
     )
 
 
+def _mc(pdf, w, h, text, **kwargs):
+    """multi_cell that always returns the cursor to the left margin.
+
+    fpdf2's multi_cell default leaves the X cursor at the right of the last
+    line, so a following multi_cell would start near the right edge and get
+    clipped. Forcing new_x to the left margin keeps every block left-aligned.
+    """
+    kwargs.setdefault("new_x", "LMARGIN")
+    kwargs.setdefault("new_y", "NEXT")
+    pdf.multi_cell(w, h, text, **kwargs)
+
+
 def _hex_to_rgb(value, default=(0, 0, 0)):
     value = (value or "").lstrip("#")
     if len(value) != 6:
@@ -697,12 +709,12 @@ def build_pdf(request, theme, pdf_out):
             pdf.set_y(70)
         pdf.set_text_color(*text_rgb)
         pdf.set_font("Helvetica", "B", 26)
-        pdf.multi_cell(epw, 12, pdf_latin1_safe(meta.get("title", "Untitled")), align="C")
+        _mc(pdf, epw, 12, pdf_latin1_safe(meta.get("title", "Untitled")), align="C")
         if meta.get("subtitle"):
             pdf.ln(2)
             pdf.set_font("Helvetica", "", 14)
             pdf.set_text_color(*muted_rgb)
-            pdf.multi_cell(epw, 8, pdf_latin1_safe(meta["subtitle"]), align="C")
+            _mc(pdf, epw, 8, pdf_latin1_safe(meta["subtitle"]), align="C")
         pdf.ln(10)
         pdf.set_font("Helvetica", "", 11)
         pdf.set_text_color(*muted_rgb)
@@ -716,18 +728,18 @@ def build_pdf(request, theme, pdf_out):
         if meta.get("date"):
             metabits.append(str(meta["date"]))
         if metabits:
-            pdf.multi_cell(epw, 6, pdf_latin1_safe("  -  ".join(metabits)), align="C")
+            _mc(pdf, epw, 6, pdf_latin1_safe("  -  ".join(metabits)), align="C")
         if branding.get("website"):
             pdf.ln(2)
             pdf.set_text_color(*primary)
-            pdf.multi_cell(epw, 6, pdf_latin1_safe(branding["website"]), align="C")
+            _mc(pdf, epw, 6, pdf_latin1_safe(branding["website"]), align="C")
 
     # --- Table of contents ---
     if show_toc and toc_entries:
         pdf.add_page()
         pdf.set_font("Helvetica", "B", 20)
         pdf.set_text_color(*primary)
-        pdf.multi_cell(epw, 10, "Contents")
+        _mc(pdf, epw, 10, "Contents")
         y = pdf.get_y() + 1
         pdf.set_draw_color(*primary)
         pdf.line(pdf.l_margin, y, pdf.l_margin + epw, y)
@@ -743,7 +755,7 @@ def build_pdf(request, theme, pdf_out):
             else:
                 pdf.set_font("Helvetica", "", 11)
                 pdf.set_text_color(*muted_rgb)
-            pdf.multi_cell(epw - indent, 7, text)
+            _mc(pdf, epw - indent, 7, text)
 
     # --- Content ---
     pdf.add_page()
@@ -758,7 +770,7 @@ def _pdf_heading(pdf, level, text, primary, text_rgb, epw):
     pdf.ln(4 if level > 1 else 6)
     pdf.set_font("Helvetica", "B", size)
     pdf.set_text_color(*(primary if level == 1 else text_rgb))
-    pdf.multi_cell(epw, size * 0.5, pdf_latin1_safe(text), wrapmode="CHAR")
+    _mc(pdf, epw, size * 0.5, pdf_latin1_safe(text), wrapmode="CHAR")
     if level == 1:
         y = pdf.get_y() + 1
         pdf.set_draw_color(*primary)
@@ -775,7 +787,7 @@ def _pdf_render_blocks(pdf, blocks, primary, text_rgb, muted_rgb, code_bg, epw):
         elif kind == "paragraph":
             pdf.set_font("Helvetica", "", 11)
             pdf.set_text_color(*text_rgb)
-            pdf.multi_cell(epw, 6, payload, wrapmode="CHAR")
+            _mc(pdf, epw, 6, payload, wrapmode="CHAR")
             pdf.ln(2)
         elif kind == "code":
             pdf.ln(1)
@@ -785,19 +797,19 @@ def _pdf_render_blocks(pdf, blocks, primary, text_rgb, muted_rgb, code_bg, epw):
             for ln in payload.split("\n"):
                 # Break long unbroken tokens (URLs, hashes) at character level
                 # so code never runs off the right edge.
-                pdf.multi_cell(epw, 5, pdf_latin1_safe(ln) or " ", fill=True, wrapmode="CHAR")
+                _mc(pdf, epw, 5, pdf_latin1_safe(ln) or " ", fill=True, wrapmode="CHAR")
             pdf.ln(2)
         elif kind in ("ulist", "olist"):
             pdf.set_font("Helvetica", "", 11)
             pdf.set_text_color(*text_rgb)
             for idx, item in enumerate(payload, start=1):
                 bullet = ("%d. " % idx) if kind == "olist" else "-  "
-                pdf.multi_cell(epw, 6, bullet + item, wrapmode="CHAR")
+                _mc(pdf, epw, 6, bullet + item, wrapmode="CHAR")
             pdf.ln(2)
         elif kind == "quote":
             pdf.set_font("Helvetica", "I", 11)
             pdf.set_text_color(*muted_rgb)
-            pdf.multi_cell(epw, 6, payload, border="L", wrapmode="CHAR")
+            _mc(pdf, epw, 6, payload, border="L", wrapmode="CHAR")
             pdf.ln(2)
         elif kind == "table":
             _pdf_table(pdf, payload[0], payload[1], primary, text_rgb, code_bg, epw)
