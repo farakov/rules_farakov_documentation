@@ -1,0 +1,107 @@
+# End-to-end exercise of the public API plus assertions.
+
+load(
+    "@rules_farakov_documentation//documentation:defs.bzl",
+    "doc_section",
+    "doc_template",
+    "doc_theme",
+    "documentation_package",
+)
+load(":assertions.bzl", "manifest_contains_test", "output_contains_test")
+
+# --- Theme ----------------------------------------------------------------
+
+doc_theme(
+    name = "corporate_theme",
+    theme_name = "corporate",
+    colors = {
+        "primary": "#0b3d91",
+        "text": "#15202b",
+    },
+    typography = {
+        "heading_font": "Helvetica, Arial, sans-serif",
+    },
+    max_width = "900px",
+)
+
+# --- Template -------------------------------------------------------------
+
+doc_template(
+    name = "assessment_template",
+    template_name = "assessment",
+    theme = ":corporate_theme",
+    show_cover = True,
+    show_toc = True,
+)
+
+# --- Sections -------------------------------------------------------------
+
+doc_section(
+    name = "summary",
+    title = "Executive Summary",
+    srcs = ["content/summary.md"],
+)
+
+doc_section(
+    name = "findings",
+    title = "Findings",
+    srcs = ["content/findings.md"],
+)
+
+# --- Package (via template) ----------------------------------------------
+
+documentation_package(
+    name = "security_assessment",
+    title = "Example Corp Security Assessment",
+    authors = [
+        "A. Tester",
+        "B. Reviewer",
+    ],
+    metadata = {
+        "subtitle": "Web Platform Penetration Test",
+        "version": "1.0",
+        "revision": "final",
+        "date": "2026-02-15",
+    },
+    sections = [
+        ":summary",
+        ":findings",
+    ],
+    template = ":assessment_template",
+)
+
+# --- Package (theme only, no template) -----------------------------------
+
+documentation_package(
+    name = "minimal_doc",
+    title = "Minimal Doc",
+    sections = [":summary"],
+    theme = ":corporate_theme",
+)
+
+# --- Assertions -----------------------------------------------------------
+
+output_contains_test(
+    name = "html_has_cover_test",
+    target = ":security_assessment",
+    expected = [
+        "Example Corp Security Assessment",
+        "Web Platform Penetration Test",
+        "class=\"cover\"",
+        "class=\"toc\"",
+        "#0b3d91",
+        "SQL Injection in Search Endpoint",
+        "<table>",
+        "<blockquote>",
+    ],
+)
+
+manifest_contains_test(
+    name = "manifest_test",
+    target = ":security_assessment",
+    expected = [
+        "\"theme\": \"corporate\"",
+        "\"section_count\": 2",
+        "\"package\": \"security_assessment\"",
+    ],
+)

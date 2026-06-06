@@ -1,0 +1,37 @@
+"""Bzlmod module definition for rules_farakov_documentation.
+
+Dependency versions are pinned. Bumping any pinned version is a
+deliberate release-bearing change.
+"""
+
+module(
+    name = "rules_farakov_documentation",
+    version = "0.0.0",
+)
+
+# --- Pinned toolchains ---------------------------------------------------
+
+bazel_dep(name = "rules_oci", version = "2.2.6")
+bazel_dep(name = "rules_pkg", version = "1.1.0")
+
+# --- Ancillary infrastructure (not consumer-visible) ---------------------
+
+# Required by our stardoc targets and the test workspace. The resolved
+# version comes from the graph (currently 1.9.0 via rules_python 1.7.0).
+bazel_dep(name = "bazel_skylib", version = "1.9.0")
+
+bazel_dep(name = "rules_python", version = "1.7.0")
+
+# --- Python toolchain (private use only) --------------------------------
+
+python = use_extension(
+    "@rules_python//python/extensions:python.bzl",
+    "python",
+)
+python.toolchain(
+    is_default = True,
+    python_version = "3.12",
+)
+use_repo(python, "python_3_12", "python_3_12_host")
+
+register_toolchains("@python_3_12_host//:all")

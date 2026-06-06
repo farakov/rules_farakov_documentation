@@ -1,0 +1,79 @@
+# Company-standard theme, template, and reusable disclosure sections.
+#
+# Consumers should generally use the `responsible_disclosure` macro from
+# //company:defs.bzl rather than depending on these targets directly, but the
+# targets are public so bespoke documents can compose them as needed.
+
+load(
+    "@rules_farakov_documentation//documentation:defs.bzl",
+    "doc_section",
+    "doc_template",
+    "doc_theme",
+)
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files(["defs.bzl"])
+
+# --- Standard corporate theme --------------------------------------------
+
+doc_theme(
+    name = "company_theme",
+    theme_name = "company",
+    colors = {
+        "primary": "#0b3d91",
+        "text": "#15202b",
+        "muted": "#5a6b7b",
+        "border": "#c9d4df",
+        "code_bg": "#f2f6fb",
+    },
+    typography = {
+        "heading_font": "Helvetica Neue, Helvetica, Arial, sans-serif",
+        "body_font": "Helvetica Neue, Helvetica, Arial, sans-serif",
+    },
+    max_width = "880px",
+    show_cover = True,
+    show_toc = True,
+)
+
+# --- Responsible-disclosure template -------------------------------------
+
+doc_template(
+    name = "disclosure_template",
+    template_name = "responsible-disclosure",
+    theme = ":company_theme",
+    show_cover = True,
+    show_toc = True,
+)
+
+# --- Reusable disclosure boilerplate sections ----------------------------
+
+doc_section(
+    name = "sec_policy",
+    title = "Responsible Disclosure Policy",
+    srcs = ["disclosure/policy.md"],
+)
+
+doc_section(
+    name = "sec_scope",
+    title = "Scope",
+    srcs = ["disclosure/scope.md"],
+)
+
+doc_section(
+    name = "sec_reporting",
+    title = "Reporting Process",
+    srcs = ["disclosure/reporting.md"],
+)
+
+doc_section(
+    name = "sec_severity",
+    title = "Severity Scale",
+    srcs = ["disclosure/severity.md"],
+)
+
+doc_section(
+    name = "sec_safe_harbor",
+    title = "Safe Harbor",
+    srcs = ["disclosure/safe_harbor.md"],
+)

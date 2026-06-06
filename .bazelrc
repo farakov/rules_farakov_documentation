@@ -1,0 +1,15 @@
+# Bazel configuration for rules_farakov_documentation.
+
+# Bzlmod is the only supported module system.
+common --enable_bzlmod
+
+# Hermetic builds — no ambient toolchain or env leaking.
+build --incompatible_strict_action_env
+
+# Don't expose legacy runfiles trees; rules_oci uses the modern
+# runfiles library.
+build --nolegacy_external_runfiles
+
+# Keep test output on stderr for CI. Pass --test_output=streamed to
+# see output in real time.
+test --test_output=errors

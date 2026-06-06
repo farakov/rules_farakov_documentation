@@ -1,0 +1,28 @@
+# Findings
+
+The findings below are ordered by severity.
+
+## SQL Injection in Search Endpoint
+
+| Field | Value |
+|-------|-------|
+| Severity | Medium |
+| Component | `api.example.com/v2/search` |
+| Status | Open |
+
+The search endpoint concatenates user input directly into a query. Use
+parameterized queries to remediate.
+
+```sql
+SELECT * FROM products WHERE name = ?;
+```
+
+## Missing Security Headers
+
+The application does not set `Content-Security-Policy`. Add the following:
+
+- `Content-Security-Policy`
+- `X-Content-Type-Options: nosniff`
+- `Strict-Transport-Security`
+
+> Defense in depth: headers complement, but do not replace, input validation.

@@ -1,0 +1,32 @@
+"""Test workspace for rules_farakov_documentation.
+
+This is a standalone Bazel module that consumes the ruleset under test via a
+local path override. CI builds and tests this workspace to exercise the public
+API end-to-end.
+"""
+
+module(
+    name = "rules_farakov_documentation_tests",
+    version = "0.0.0",
+)
+
+bazel_dep(name = "rules_farakov_documentation", version = "0.0.0")
+local_path_override(
+    module_name = "rules_farakov_documentation",
+    path = "..",
+)
+
+bazel_dep(name = "bazel_skylib", version = "1.9.0")
+bazel_dep(name = "rules_python", version = "1.7.0")
+
+python = use_extension(
+    "@rules_python//python/extensions:python.bzl",
+    "python",
+)
+python.toolchain(
+    is_default = True,
+    python_version = "3.12",
+)
+use_repo(python, "python_3_12", "python_3_12_host")
+
+register_toolchains("@python_3_12_host//:all")

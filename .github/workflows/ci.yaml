@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Bazelisk / Bazel
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/bazel
+            ~/.cache/bazelisk
+            /private/var/tmp/_bazel_runner
+          key: bazel-${{ matrix.os }}-${{ hashFiles('.bazelversion', 'MODULE.bazel.lock', 'tests/MODULE.bazel.lock') }}
+          restore-keys: |
+            bazel-${{ matrix.os }}-
+
+      - name: Install Bazelisk
+        run: |
+          if [ "${{ matrix.os }}" = "ubuntu-24.04" ]; then
+            curl -fsSL https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 -o bazelisk
+            chmod +x bazelisk
+            sudo mv bazelisk /usr/local/bin/bazelisk
+            sudo ln -sf /usr/local/bin/bazelisk /usr/local/bin/bazel
+          else
+            brew install bazelisk
+          fi
+
+      - name: Build ruleset root
+        run: bazel build //...
+
+      - name: Build tests workspace
+        working-directory: tests
+        run: bazel build //...
+
+      - name: Run tests workspace
+        working-directory: tests
+        run: bazel test //...

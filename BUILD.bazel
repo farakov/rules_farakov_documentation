@@ -1,0 +1,8 @@
+# rules_farakov_documentation root package.
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files([
+    "MODULE.bazel",
+    "LICENSE",
+])
