@@ -26,7 +26,7 @@ jobs:
             ~/.cache/bazel
             ~/.cache/bazelisk
             /private/var/tmp/_bazel_runner
-          key: bazel-${{ matrix.os }}-${{ hashFiles('.bazelversion', 'MODULE.bazel.lock', 'tests/MODULE.bazel.lock') }}
+          key: bazel-${{ matrix.os }}-${{ hashFiles('.bazelversion', 'MODULE.bazel.lock', 'requirements_lock.txt', 'tests/MODULE.bazel.lock') }}
           restore-keys: |
             bazel-${{ matrix.os }}-
 

@@ -9,14 +9,35 @@ load("@rules_farakov_documentation//documentation:defs.bzl", "DocPackageInfo")
 
 def _content_test_impl(ctx):
     info = ctx.attr.target[DocPackageInfo]
-    target_file = info.manifest if ctx.attr.kind == "manifest" else info.html
+    if ctx.attr.kind == "manifest":
+        target_file = info.manifest
+    elif ctx.attr.kind == "pdf":
+        target_file = info.pdf
+        if target_file == None:
+            fail("pdf assertion requires the package to be built with pdf = True")
+    else:
+        target_file = info.html
 
     checks = []
+    if ctx.attr.kind == "pdf":
+        # PDFs are binary; assert the file exists and has the PDF magic header.
+        checks.append(
+            "head -c 5 \"$F\" | grep -q '%PDF-' || { echo 'NOT A PDF: missing %PDF- header'; FAIL=1; }",
+        )
     for needle in ctx.attr.expected:
         # Single-quote the needle for the shell; needles here contain no single quotes.
         checks.append(
             "grep -F -- '{needle}' \"$F\" > /dev/null || {{ echo \"MISSING: {needle}\"; FAIL=1; }}".format(
                 needle = needle,
+            ),
+        )
+    for needle, want in ctx.attr.expected_counts.items():
+        checks.append(
+            ("N=$(grep -F -c -- '{needle}' \"$F\" || true); " +
+             "if [ \"$N\" != \"{want}\" ]; then " +
+             "echo \"COUNT MISMATCH for '{needle}': want {want}, got $N\"; FAIL=1; fi").format(
+                needle = needle,
+                want = want,
             ),
         )
 
@@ -54,15 +75,29 @@ _content_test = rule(
     test = True,
     attrs = {
         "target": attr.label(providers = [DocPackageInfo], mandatory = True),
-        "expected": attr.string_list(mandatory = True),
-        "kind": attr.string(values = ["html", "manifest"], default = "html"),
+        "expected": attr.string_list(),
+        "expected_counts": attr.string_dict(
+            doc = "Map of substring -> exact occurrence count.",
+        ),
+        "kind": attr.string(values = ["html", "manifest", "pdf"], default = "html"),
     },
 )
 
-def output_contains_test(name, target, expected):
-    """Assert the rendered HTML output contains each expected substring."""
-    _content_test(name = name, target = target, expected = expected, kind = "html", size = "small")
+def output_contains_test(name, target, expected = [], expected_counts = {}):
+    """Assert the rendered HTML output contains substrings / exact counts."""
+    _content_test(
+        name = name,
+        target = target,
+        expected = expected,
+        expected_counts = expected_counts,
+        kind = "html",
+        size = "small",
+    )
 
 def manifest_contains_test(name, target, expected):
     """Assert the package manifest contains each expected substring."""
     _content_test(name = name, target = target, expected = expected, kind = "manifest", size = "small")
+
+def pdf_produced_test(name, target):
+    """Assert the package produced a valid (well-formed header) PDF."""
+    _content_test(name = name, target = target, kind = "pdf", size = "small")

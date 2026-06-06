@@ -6,7 +6,7 @@ deliberate release-bearing change.
 
 module(
     name = "rules_farakov_documentation",
-    version = "0.1.0",
+    version = "0.2.0",
 )
 
 # --- Pinned toolchains ---------------------------------------------------
@@ -35,3 +35,17 @@ python.toolchain(
 use_repo(python, "python_3_12", "python_3_12_host")
 
 register_toolchains("@python_3_12_host//:all")
+
+# --- Pinned Python dependencies for the PDF backend ----------------------
+#
+# fpdf2 is a pure-Python PDF library (its only platform-specific dependency,
+# Pillow, ships prebuilt wheels for all supported platforms), so the renderer
+# stays portable across macOS and CI with no system packages required.
+
+pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
+pip.parse(
+    hub_name = "rfd_pip",
+    python_version = "3.12",
+    requirements_lock = "//:requirements_lock.txt",
+)
+use_repo(pip, "rfd_pip")

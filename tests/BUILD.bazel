@@ -7,7 +7,7 @@ load(
     "doc_theme",
     "documentation_package",
 )
-load(":assertions.bzl", "manifest_contains_test", "output_contains_test")
+load(":assertions.bzl", "manifest_contains_test", "output_contains_test", "pdf_produced_test")
 
 # --- Theme ----------------------------------------------------------------
 
@@ -96,6 +96,20 @@ documentation_package(
     theme = ":branded_theme",
 )
 
+# --- Package with PDF output ---------------------------------------------
+
+documentation_package(
+    name = "pdf_doc",
+    title = "PDF Doc",
+    metadata = {"date": "2026-01-01", "version": "1.0"},
+    sections = [
+        ":summary",
+        ":findings",
+    ],
+    theme = ":branded_theme",
+    pdf = True,
+)
+
 # --- Assertions -----------------------------------------------------------
 
 output_contains_test(
@@ -132,4 +146,20 @@ output_contains_test(
         "class=\"website\"",
         "example.com",
     ],
+)
+
+# Regression: a section title that matches a leading H1 in the source must not
+# produce a duplicate heading. summary.md opens with "# Executive Summary" and
+# the :summary section also sets title = "Executive Summary".
+output_contains_test(
+    name = "no_duplicate_heading_test",
+    target = ":security_assessment",
+    expected_counts = {
+        "<h1 id=\"executive-summary\">Executive Summary</h1>": "1",
+    },
+)
+
+pdf_produced_test(
+    name = "pdf_output_test",
+    target = ":pdf_doc",
 )

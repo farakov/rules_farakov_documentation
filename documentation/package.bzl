@@ -65,6 +65,13 @@ def _doc_package_impl(ctx):
     args.add("--html-out", html_out)
     args.add("--manifest-out", manifest_out)
 
+    action_outputs = [html_out, manifest_out]
+    pdf_out = None
+    if ctx.attr.pdf:
+        pdf_out = ctx.actions.declare_file(ctx.label.name + ".pdf")
+        args.add("--pdf-out", pdf_out)
+        action_outputs.append(pdf_out)
+
     direct_inputs = [request_file]
     if theme_info:
         args.add("--theme", theme_info.config)
@@ -80,17 +87,18 @@ def _doc_package_impl(ctx):
         executable = ctx.executable._renderer,
         arguments = [args],
         inputs = inputs,
-        outputs = [html_out, manifest_out],
+        outputs = action_outputs,
         mnemonic = "RenderDocs",
         progress_message = "Rendering documentation package %s" % ctx.label,
     )
 
-    outputs = depset([html_out, manifest_out])
+    outputs = depset(action_outputs)
     return [
         DefaultInfo(files = outputs),
         DocPackageInfo(
             name = ctx.label.name,
             html = html_out,
+            pdf = pdf_out,
             manifest = manifest_out,
             outputs = outputs,
         ),
@@ -121,6 +129,10 @@ documentation_package = rule(
         "template": attr.label(
             providers = [DocTemplateInfo],
             doc = "Optional template providing layout policy and a default theme.",
+        ),
+        "pdf": attr.bool(
+            default = False,
+            doc = "Also emit a PDF rendering alongside the HTML output.",
         ),
         "_renderer": attr.label(
             default = Label("//documentation/private:render"),

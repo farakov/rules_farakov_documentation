@@ -1,5 +1,6 @@
 # Implementation-detail tools. Not part of the public API.
 
+load("@rfd_pip//:requirements.bzl", "requirement")
 load("@rules_python//python:defs.bzl", "py_binary")
 
 package(default_visibility = ["//visibility:public"])
@@ -8,4 +9,7 @@ py_binary(
     name = "render",
     srcs = ["render.py"],
     main = "render.py",
+    deps = [
+        requirement("fpdf2"),
+    ],
 )

@@ -413,16 +413,30 @@ def build_document(request):
     renderer = Renderer()
     for section in request.get("sections", []):
         title = section.get("title")
-        if title:
-            slug = slugify(title)
-            renderer.toc.append((1, title, slug))
-            renderer.out.append('<h1 id="%s">%s</h1>' % (slug, html.escape(title)))
+
+        # Render this section's sources into a private renderer first so we can
+        # detect whether the content already opens with a matching H1.
+        body = Renderer()
         for src in section.get("sources", []):
             text = read_text(src)
             inner = Renderer()
             inner.render(text.splitlines())
-            renderer.out.extend(inner.out)
-            renderer.toc.extend(inner.toc)
+            body.out.extend(inner.out)
+            body.toc.extend(inner.toc)
+
+        if title:
+            slug = slugify(title)
+            # If the content already starts with an H1 of the same title, that
+            # heading stands in for the section title; don't emit a duplicate.
+            content_has_matching_h1 = (
+                body.toc and body.toc[0][0] == 1 and slugify(body.toc[0][1]) == slug
+            )
+            if not content_has_matching_h1:
+                renderer.toc.append((1, title, slug))
+                renderer.out.append('<h1 id="%s">%s</h1>' % (slug, html.escape(title)))
+
+        renderer.out.extend(body.out)
+        renderer.toc.extend(body.toc)
 
     body_parts = []
     if layout.get("show_cover", True):
@@ -456,12 +470,279 @@ def build_document(request):
     return doc, theme, renderer.toc
 
 
+# --------------------------------------------------------------------------
+# PDF backend (pure-Python via fpdf2)
+# --------------------------------------------------------------------------
+#
+# The PDF backend renders the same document model as the HTML output, mapping
+# the theme's colors and fonts onto a paginated layout. It does not interpret
+# CSS (fpdf2 is not a browser), so the PDF is a clean, professional rendering
+# rather than a pixel-identical copy of the HTML.
+
+_PDF_INLINE_CODE = re.compile(r"`([^`]+)`")
+_PDF_BOLD = re.compile(r"\*\*([^*]+)\*\*")
+_PDF_ITALIC = re.compile(r"(?<!\*)\*([^*]+)\*(?!\*)")
+_PDF_IMAGE = re.compile(r"!\[([^\]]*)\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
+_PDF_LINK = re.compile(r"\[([^\]]+)\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
+
+
+def pdf_inline(text):
+    """Reduce inline Markdown to plain text for PDF (styling kept simple)."""
+    text = _PDF_IMAGE.sub(lambda m: m.group(1) or "", text)
+    text = _PDF_LINK.sub(lambda m: m.group(1), text)
+    text = _PDF_INLINE_CODE.sub(lambda m: m.group(1), text)
+    text = _PDF_BOLD.sub(lambda m: m.group(1), text)
+    text = _PDF_ITALIC.sub(lambda m: m.group(1), text)
+    return text
+
+
+def parse_blocks(lines):
+    """Parse Markdown into semantic blocks for the PDF backend.
+
+    Returns a list of (kind, payload) tuples where kind is one of:
+    heading (level, text), paragraph (text), code (text), ulist (items),
+    olist (items), quote (text), table (header, rows), hr (None).
+    """
+    blocks = []
+    i = 0
+    n = len(lines)
+    while i < n:
+        line = lines[i]
+        if not line.strip():
+            i += 1
+            continue
+        if line.lstrip().startswith("```"):
+            body = []
+            i += 1
+            while i < n and not lines[i].lstrip().startswith("```"):
+                body.append(lines[i])
+                i += 1
+            i += 1
+            blocks.append(("code", "\n".join(body)))
+            continue
+        if _HR.match(line.strip()):
+            blocks.append(("hr", None))
+            i += 1
+            continue
+        m = _HEADING.match(line)
+        if m:
+            blocks.append(("heading", (len(m.group(1)), pdf_inline(m.group(2)))))
+            i += 1
+            continue
+        if "|" in line and i + 1 < n and _TABLE_DIVIDER.match(lines[i + 1]):
+            header = [pdf_inline(c) for c in split_table_row(line)]
+            i += 2
+            rows = []
+            while i < n and "|" in lines[i] and lines[i].strip():
+                rows.append([pdf_inline(c) for c in split_table_row(lines[i])])
+                i += 1
+            blocks.append(("table", (header, rows)))
+            continue
+        if line.lstrip().startswith(">"):
+            body = []
+            while i < n and lines[i].lstrip().startswith(">"):
+                body.append(lines[i].lstrip()[1:].lstrip())
+                i += 1
+            blocks.append(("quote", pdf_inline(" ".join(body))))
+            continue
+        if _UL_ITEM.match(line) or _OL_ITEM.match(line):
+            ordered = bool(_OL_ITEM.match(line))
+            pattern = _OL_ITEM if ordered else _UL_ITEM
+            items = []
+            while i < n and pattern.match(lines[i]):
+                items.append(pdf_inline(pattern.match(lines[i]).group(1)))
+                i += 1
+            blocks.append(("olist" if ordered else "ulist", items))
+            continue
+        para = [line]
+        i += 1
+        while i < n and lines[i].strip() and not _pdf_is_block_start(lines[i]):
+            para.append(lines[i])
+            i += 1
+        blocks.append(("paragraph", pdf_inline(" ".join(para))))
+    return blocks
+
+
+def _pdf_is_block_start(line):
+    stripped = line.lstrip()
+    return (
+        stripped.startswith("```")
+        or bool(_HEADING.match(line))
+        or bool(_UL_ITEM.match(line))
+        or bool(_OL_ITEM.match(line))
+        or stripped.startswith(">")
+        or bool(_HR.match(line.strip()))
+    )
+
+
+def _hex_to_rgb(value, default=(0, 0, 0)):
+    value = (value or "").lstrip("#")
+    if len(value) != 6:
+        return default
+    try:
+        return tuple(int(value[i:i + 2], 16) for i in (0, 2, 4))
+    except ValueError:
+        return default
+
+
+def build_pdf(request, theme, pdf_out):
+    """Render the document to a PDF file using fpdf2."""
+    from fpdf import FPDF
+
+    meta = request.get("metadata", {})
+    colors = theme.get("colors", {})
+    branding = theme.get("branding", {})
+    primary = _hex_to_rgb(colors.get("primary"), (31, 111, 235))
+    text_rgb = _hex_to_rgb(colors.get("text"), (26, 26, 26))
+    muted_rgb = _hex_to_rgb(colors.get("muted"), (106, 115, 125))
+    code_bg = _hex_to_rgb(colors.get("code_bg"), (246, 248, 250))
+
+    pdf = FPDF(format="A4", unit="mm")
+    pdf.set_auto_page_break(auto=True, margin=20)
+    pdf.set_margins(20, 20, 20)
+    pdf.set_title(meta.get("title", "Documentation"))
+    epw = pdf.epw  # effective page width
+
+    # --- Cover page ---
+    pdf.add_page()
+    logo_path = branding.get("logo_path")
+    if logo_path and logo_path.lower().endswith(".svg"):
+        try:
+            pdf.image(logo_path, x=(pdf.w - 40) / 2, y=40, w=40)
+            pdf.set_y(90)
+        except Exception:
+            pdf.set_y(70)
+    else:
+        pdf.set_y(70)
+    pdf.set_text_color(*text_rgb)
+    pdf.set_font("Helvetica", "B", 26)
+    pdf.multi_cell(epw, 12, meta.get("title", "Untitled"), align="C")
+    if meta.get("subtitle"):
+        pdf.ln(2)
+        pdf.set_font("Helvetica", "", 14)
+        pdf.set_text_color(*muted_rgb)
+        pdf.multi_cell(epw, 8, meta["subtitle"], align="C")
+    pdf.ln(10)
+    pdf.set_font("Helvetica", "", 11)
+    pdf.set_text_color(*muted_rgb)
+    metabits = []
+    if meta.get("authors"):
+        metabits.append("By " + ", ".join(meta["authors"]))
+    if meta.get("version"):
+        metabits.append("Version " + str(meta["version"]))
+    if meta.get("revision"):
+        metabits.append("Revision " + str(meta["revision"]))
+    if meta.get("date"):
+        metabits.append(str(meta["date"]))
+    if metabits:
+        pdf.multi_cell(epw, 6, "  -  ".join(metabits), align="C")
+    if branding.get("website"):
+        pdf.ln(2)
+        pdf.set_text_color(*primary)
+        pdf.multi_cell(epw, 6, branding["website"], align="C")
+
+    # --- Content ---
+    pdf.add_page()
+    for section in request.get("sections", []):
+        title = section.get("title")
+        seen_title = False
+        for src in section.get("sources", []):
+            blocks = parse_blocks(read_text(src).splitlines())
+            if title and not seen_title:
+                first_is_match = (
+                    blocks and blocks[0][0] == "heading" and
+                    blocks[0][1][0] == 1 and
+                    slugify(blocks[0][1][1]) == slugify(title)
+                )
+                if not first_is_match:
+                    _pdf_heading(pdf, 1, title, primary, text_rgb, epw)
+                seen_title = True
+            _pdf_render_blocks(pdf, blocks, primary, text_rgb, muted_rgb, code_bg, epw)
+
+    pdf.output(pdf_out)
+
+
+def _pdf_heading(pdf, level, text, primary, text_rgb, epw):
+    sizes = {1: 18, 2: 14, 3: 12}
+    size = sizes.get(level, 11)
+    pdf.ln(4 if level > 1 else 6)
+    pdf.set_font("Helvetica", "B", size)
+    pdf.set_text_color(*(primary if level == 1 else text_rgb))
+    pdf.multi_cell(epw, size * 0.5, text)
+    if level == 1:
+        y = pdf.get_y() + 1
+        pdf.set_draw_color(*primary)
+        pdf.line(pdf.l_margin, y, pdf.l_margin + epw, y)
+        pdf.ln(3)
+    else:
+        pdf.ln(1)
+
+
+def _pdf_render_blocks(pdf, blocks, primary, text_rgb, muted_rgb, code_bg, epw):
+    for kind, payload in blocks:
+        if kind == "heading":
+            _pdf_heading(pdf, payload[0], payload[1], primary, text_rgb, epw)
+        elif kind == "paragraph":
+            pdf.set_font("Helvetica", "", 11)
+            pdf.set_text_color(*text_rgb)
+            pdf.multi_cell(epw, 6, payload)
+            pdf.ln(2)
+        elif kind == "code":
+            pdf.ln(1)
+            pdf.set_font("Courier", "", 9)
+            pdf.set_fill_color(*code_bg)
+            pdf.set_text_color(*text_rgb)
+            for ln in payload.split("\n"):
+                pdf.multi_cell(epw, 5, ln or " ", fill=True)
+            pdf.ln(2)
+        elif kind in ("ulist", "olist"):
+            pdf.set_font("Helvetica", "", 11)
+            pdf.set_text_color(*text_rgb)
+            for idx, item in enumerate(payload, start=1):
+                bullet = ("%d. " % idx) if kind == "olist" else "-  "
+                pdf.multi_cell(epw, 6, bullet + item)
+            pdf.ln(2)
+        elif kind == "quote":
+            pdf.set_font("Helvetica", "I", 11)
+            pdf.set_text_color(*muted_rgb)
+            pdf.multi_cell(epw, 6, payload, border="L")
+            pdf.ln(2)
+        elif kind == "table":
+            _pdf_table(pdf, payload[0], payload[1], primary, text_rgb, code_bg, epw)
+        elif kind == "hr":
+            y = pdf.get_y() + 1
+            pdf.set_draw_color(200, 200, 200)
+            pdf.line(pdf.l_margin, y, pdf.l_margin + epw, y)
+            pdf.ln(4)
+
+
+def _pdf_table(pdf, header, rows, primary, text_rgb, code_bg, epw):
+    pdf.ln(1)
+    ncols = max(len(header), max((len(r) for r in rows), default=1))
+    col_w = epw / ncols
+    pdf.set_font("Helvetica", "B", 10)
+    pdf.set_fill_color(*code_bg)
+    pdf.set_text_color(*text_rgb)
+    pdf.set_draw_color(200, 200, 200)
+    for cell in header:
+        pdf.cell(col_w, 8, cell, border=1, fill=True)
+    pdf.ln(8)
+    pdf.set_font("Helvetica", "", 10)
+    for row in rows:
+        cells = list(row) + [""] * (ncols - len(row))
+        for cell in cells:
+            pdf.cell(col_w, 7, cell, border=1)
+        pdf.ln(7)
+    pdf.ln(2)
+
+
 def main(argv):
     parser = argparse.ArgumentParser(description="Render a documentation package.")
     parser.add_argument("--request", required=True, help="Path to build request JSON.")
     parser.add_argument("--theme", help="Optional path to a normalized theme JSON.")
     parser.add_argument("--template", help="Optional path to a normalized template JSON.")
     parser.add_argument("--html-out", required=True, help="Output HTML file path.")
+    parser.add_argument("--pdf-out", help="Optional output PDF file path.")
     parser.add_argument("--manifest-out", required=True, help="Output manifest JSON.")
     args = parser.parse_args(argv)
 
@@ -480,6 +761,9 @@ def main(argv):
     with open(args.html_out, "w", encoding="utf-8") as handle:
         handle.write(doc)
 
+    if args.pdf_out:
+        build_pdf(request, theme, args.pdf_out)
+
     manifest = {
         "schema": 1,
         "package": request.get("name", "documentation"),
@@ -489,6 +773,7 @@ def main(argv):
         "theme": theme["name"],
         "section_count": len(request.get("sections", [])),
         "heading_count": len(toc),
+        "formats": ["html"] + (["pdf"] if args.pdf_out else []),
         "metadata": request.get("metadata", {}),
     }
     with open(args.manifest_out, "w", encoding="utf-8") as handle:

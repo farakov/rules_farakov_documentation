@@ -39,6 +39,7 @@ DocPackageInfo = provider(
     fields = {
         "name": "str: package identifier.",
         "html": "File: the rendered single-file HTML document.",
+        "pdf": "File or None: the rendered PDF document, when pdf = True.",
         "manifest": "File: a JSON manifest describing the build inputs/outputs.",
         "outputs": "depset[File]: all files that make up the package.",
     },

@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0]
+
+### Added
+
+- `documentation_package` now accepts `pdf = True` to emit a PDF rendering
+  alongside the HTML. PDF generation uses a pure-Python backend (fpdf2), so it
+  stays portable across macOS and CI with no system packages required.
+
+### Fixed
+
+- Sections no longer render a duplicate heading when a `doc_section` `title`
+  matches the leading H1 of its Markdown source; the content heading stands in
+  and the table of contents records a single entry.
+
 ## [0.1.0]
 
 ### Added

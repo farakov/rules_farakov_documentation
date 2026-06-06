@@ -14,4 +14,5 @@ responsible_disclosure(
         "version": "2.0",
         "date": "2026-03-01",
     },
+    pdf = True,
 )
