@@ -181,8 +181,20 @@ class Renderer:
                 pattern = _OL_ITEM if ordered else _UL_ITEM
                 items = []
                 while i < n and pattern.match(lines[i]):
-                    items.append(pattern.match(lines[i]).group(1))
+                    item_text = pattern.match(lines[i]).group(1)
                     i += 1
+                    # Absorb continuation lines: non-blank lines that are not a
+                    # new list item or other block start belong to this item
+                    # (handles items wrapped across multiple source lines).
+                    while (
+                        i < n and lines[i].strip() and
+                        not _UL_ITEM.match(lines[i]) and
+                        not _OL_ITEM.match(lines[i]) and
+                        not self._is_block_start(lines[i])
+                    ):
+                        item_text += " " + lines[i].strip()
+                        i += 1
+                    items.append(item_text)
                 tag = "ol" if ordered else "ul"
                 self.out.append("<%s>" % tag)
                 for item in items:
@@ -581,8 +593,18 @@ def parse_blocks(lines):
             pattern = _OL_ITEM if ordered else _UL_ITEM
             items = []
             while i < n and pattern.match(lines[i]):
-                items.append(pdf_inline(pattern.match(lines[i]).group(1)))
+                item_text = pattern.match(lines[i]).group(1)
                 i += 1
+                # Absorb continuation lines wrapped across multiple source lines.
+                while (
+                    i < n and lines[i].strip() and
+                    not _UL_ITEM.match(lines[i]) and
+                    not _OL_ITEM.match(lines[i]) and
+                    not _pdf_is_block_start(lines[i])
+                ):
+                    item_text += " " + lines[i].strip()
+                    i += 1
+                items.append(pdf_inline(item_text))
             blocks.append(("olist" if ordered else "ulist", items))
             continue
         para = [line]
@@ -623,6 +645,9 @@ def build_pdf(request, theme, pdf_out):
     meta = request.get("metadata", {})
     colors = theme.get("colors", {})
     branding = theme.get("branding", {})
+    layout = theme.get("layout", {})
+    show_cover = layout.get("show_cover", True)
+    show_toc = layout.get("show_toc", True)
     primary = _hex_to_rgb(colors.get("primary"), (31, 111, 235))
     text_rgb = _hex_to_rgb(colors.get("text"), (26, 26, 26))
     muted_rgb = _hex_to_rgb(colors.get("muted"), (106, 115, 125))
@@ -634,46 +659,11 @@ def build_pdf(request, theme, pdf_out):
     pdf.set_title(meta.get("title", "Documentation"))
     epw = pdf.epw  # effective page width
 
-    # --- Cover page ---
-    pdf.add_page()
-    logo_path = branding.get("logo_path")
-    if logo_path and logo_path.lower().endswith(".svg"):
-        try:
-            pdf.image(logo_path, x=(pdf.w - 40) / 2, y=40, w=40)
-            pdf.set_y(90)
-        except Exception:
-            pdf.set_y(70)
-    else:
-        pdf.set_y(70)
-    pdf.set_text_color(*text_rgb)
-    pdf.set_font("Helvetica", "B", 26)
-    pdf.multi_cell(epw, 12, pdf_latin1_safe(meta.get("title", "Untitled")), align="C")
-    if meta.get("subtitle"):
-        pdf.ln(2)
-        pdf.set_font("Helvetica", "", 14)
-        pdf.set_text_color(*muted_rgb)
-        pdf.multi_cell(epw, 8, pdf_latin1_safe(meta["subtitle"]), align="C")
-    pdf.ln(10)
-    pdf.set_font("Helvetica", "", 11)
-    pdf.set_text_color(*muted_rgb)
-    metabits = []
-    if meta.get("authors"):
-        metabits.append("By " + ", ".join(meta["authors"]))
-    if meta.get("version"):
-        metabits.append("Version " + str(meta["version"]))
-    if meta.get("revision"):
-        metabits.append("Revision " + str(meta["revision"]))
-    if meta.get("date"):
-        metabits.append(str(meta["date"]))
-    if metabits:
-        pdf.multi_cell(epw, 6, pdf_latin1_safe("  -  ".join(metabits)), align="C")
-    if branding.get("website"):
-        pdf.ln(2)
-        pdf.set_text_color(*primary)
-        pdf.multi_cell(epw, 6, pdf_latin1_safe(branding["website"]), align="C")
-
-    # --- Content ---
-    pdf.add_page()
+    # --- Pass 1: assemble the document model and a flat heading list. ---
+    # Each entry in `doc_blocks` is a (kind, payload) tuple; headings carried
+    # through here also feed the table of contents.
+    doc_blocks = []
+    toc_entries = []  # (level, text)
     for section in request.get("sections", []):
         title = section.get("title")
         seen_title = False
@@ -686,9 +676,78 @@ def build_pdf(request, theme, pdf_out):
                     slugify(blocks[0][1][1]) == slugify(title)
                 )
                 if not first_is_match:
-                    _pdf_heading(pdf, 1, title, primary, text_rgb, epw)
+                    doc_blocks.append(("heading", (1, pdf_latin1_safe(title))))
                 seen_title = True
-            _pdf_render_blocks(pdf, blocks, primary, text_rgb, muted_rgb, code_bg, epw)
+            doc_blocks.extend(blocks)
+    for kind, payload in doc_blocks:
+        if kind == "heading":
+            toc_entries.append((payload[0], payload[1]))
+
+    # --- Cover page ---
+    if show_cover:
+        pdf.add_page()
+        logo_path = branding.get("logo_path")
+        if logo_path and logo_path.lower().endswith(".svg"):
+            try:
+                pdf.image(logo_path, x=(pdf.w - 40) / 2, y=40, w=40)
+                pdf.set_y(90)
+            except Exception:
+                pdf.set_y(70)
+        else:
+            pdf.set_y(70)
+        pdf.set_text_color(*text_rgb)
+        pdf.set_font("Helvetica", "B", 26)
+        pdf.multi_cell(epw, 12, pdf_latin1_safe(meta.get("title", "Untitled")), align="C")
+        if meta.get("subtitle"):
+            pdf.ln(2)
+            pdf.set_font("Helvetica", "", 14)
+            pdf.set_text_color(*muted_rgb)
+            pdf.multi_cell(epw, 8, pdf_latin1_safe(meta["subtitle"]), align="C")
+        pdf.ln(10)
+        pdf.set_font("Helvetica", "", 11)
+        pdf.set_text_color(*muted_rgb)
+        metabits = []
+        if meta.get("authors"):
+            metabits.append("By " + ", ".join(meta["authors"]))
+        if meta.get("version"):
+            metabits.append("Version " + str(meta["version"]))
+        if meta.get("revision"):
+            metabits.append("Revision " + str(meta["revision"]))
+        if meta.get("date"):
+            metabits.append(str(meta["date"]))
+        if metabits:
+            pdf.multi_cell(epw, 6, pdf_latin1_safe("  -  ".join(metabits)), align="C")
+        if branding.get("website"):
+            pdf.ln(2)
+            pdf.set_text_color(*primary)
+            pdf.multi_cell(epw, 6, pdf_latin1_safe(branding["website"]), align="C")
+
+    # --- Table of contents ---
+    if show_toc and toc_entries:
+        pdf.add_page()
+        pdf.set_font("Helvetica", "B", 20)
+        pdf.set_text_color(*primary)
+        pdf.multi_cell(epw, 10, "Contents")
+        y = pdf.get_y() + 1
+        pdf.set_draw_color(*primary)
+        pdf.line(pdf.l_margin, y, pdf.l_margin + epw, y)
+        pdf.ln(4)
+        for level, text in toc_entries:
+            if level > 3:
+                continue
+            indent = (level - 1) * 6
+            pdf.set_x(pdf.l_margin + indent)
+            if level == 1:
+                pdf.set_font("Helvetica", "B", 12)
+                pdf.set_text_color(*text_rgb)
+            else:
+                pdf.set_font("Helvetica", "", 11)
+                pdf.set_text_color(*muted_rgb)
+            pdf.multi_cell(epw - indent, 7, text)
+
+    # --- Content ---
+    pdf.add_page()
+    _pdf_render_blocks(pdf, doc_blocks, primary, text_rgb, muted_rgb, code_bg, epw)
 
     pdf.output(pdf_out)
 
@@ -699,7 +758,7 @@ def _pdf_heading(pdf, level, text, primary, text_rgb, epw):
     pdf.ln(4 if level > 1 else 6)
     pdf.set_font("Helvetica", "B", size)
     pdf.set_text_color(*(primary if level == 1 else text_rgb))
-    pdf.multi_cell(epw, size * 0.5, pdf_latin1_safe(text))
+    pdf.multi_cell(epw, size * 0.5, pdf_latin1_safe(text), wrapmode="CHAR")
     if level == 1:
         y = pdf.get_y() + 1
         pdf.set_draw_color(*primary)
@@ -716,7 +775,7 @@ def _pdf_render_blocks(pdf, blocks, primary, text_rgb, muted_rgb, code_bg, epw):
         elif kind == "paragraph":
             pdf.set_font("Helvetica", "", 11)
             pdf.set_text_color(*text_rgb)
-            pdf.multi_cell(epw, 6, payload)
+            pdf.multi_cell(epw, 6, payload, wrapmode="CHAR")
             pdf.ln(2)
         elif kind == "code":
             pdf.ln(1)
@@ -724,19 +783,21 @@ def _pdf_render_blocks(pdf, blocks, primary, text_rgb, muted_rgb, code_bg, epw):
             pdf.set_fill_color(*code_bg)
             pdf.set_text_color(*text_rgb)
             for ln in payload.split("\n"):
-                pdf.multi_cell(epw, 5, pdf_latin1_safe(ln) or " ", fill=True)
+                # Break long unbroken tokens (URLs, hashes) at character level
+                # so code never runs off the right edge.
+                pdf.multi_cell(epw, 5, pdf_latin1_safe(ln) or " ", fill=True, wrapmode="CHAR")
             pdf.ln(2)
         elif kind in ("ulist", "olist"):
             pdf.set_font("Helvetica", "", 11)
             pdf.set_text_color(*text_rgb)
             for idx, item in enumerate(payload, start=1):
                 bullet = ("%d. " % idx) if kind == "olist" else "-  "
-                pdf.multi_cell(epw, 6, bullet + item)
+                pdf.multi_cell(epw, 6, bullet + item, wrapmode="CHAR")
             pdf.ln(2)
         elif kind == "quote":
             pdf.set_font("Helvetica", "I", 11)
             pdf.set_text_color(*muted_rgb)
-            pdf.multi_cell(epw, 6, payload, border="L")
+            pdf.multi_cell(epw, 6, payload, border="L", wrapmode="CHAR")
             pdf.ln(2)
         elif kind == "table":
             _pdf_table(pdf, payload[0], payload[1], primary, text_rgb, code_bg, epw)
@@ -748,22 +809,30 @@ def _pdf_render_blocks(pdf, blocks, primary, text_rgb, muted_rgb, code_bg, epw):
 
 
 def _pdf_table(pdf, header, rows, primary, text_rgb, code_bg, epw):
+    """Render a table with wrapping cells so content never runs off the page."""
+    from fpdf.enums import TableCellFillMode
+    from fpdf.fonts import FontFace
+
     pdf.ln(1)
-    ncols = max(len(header), max((len(r) for r in rows), default=1))
-    col_w = epw / ncols
-    pdf.set_font("Helvetica", "B", 10)
-    pdf.set_fill_color(*code_bg)
-    pdf.set_text_color(*text_rgb)
     pdf.set_draw_color(200, 200, 200)
-    for cell in header:
-        pdf.cell(col_w, 8, cell, border=1, fill=True)
-    pdf.ln(8)
+    pdf.set_text_color(*text_rgb)
     pdf.set_font("Helvetica", "", 10)
-    for row in rows:
-        cells = list(row) + [""] * (ncols - len(row))
-        for cell in cells:
-            pdf.cell(col_w, 7, cell, border=1)
-        pdf.ln(7)
+    with pdf.table(
+        width=epw,
+        line_height=6,
+        headings_style=FontFace(emphasis="BOLD", fill_color=code_bg, color=text_rgb),
+        cell_fill_mode=TableCellFillMode.NONE,
+        text_align="LEFT",
+        first_row_as_headings=True,
+    ) as table:
+        if header:
+            trow = table.row()
+            for cell in header:
+                trow.cell(cell)
+        for row in rows:
+            trow = table.row()
+            for cell in row:
+                trow.cell(cell)
     pdf.ln(2)
 
 

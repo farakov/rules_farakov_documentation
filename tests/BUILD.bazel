@@ -163,3 +163,17 @@ pdf_produced_test(
     name = "pdf_output_test",
     target = ":pdf_doc",
 )
+
+# Regression: an ordered list whose items wrap across multiple source lines
+# must render as a single <ol> with continuation lines absorbed, not as several
+# one-item lists each numbered "1".
+output_contains_test(
+    name = "wrapped_list_test",
+    target = ":security_assessment",
+    expected = [
+        "<li>Parameterize all queries and review the data-access layer for any remaining string concatenation.</li>",
+    ],
+    expected_counts = {
+        "<ol>": "1",
+    },
+)

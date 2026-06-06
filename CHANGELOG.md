@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2]
+
+### Added
+
+- PDF output now includes a table of contents page (respecting the theme /
+  template `show_toc` flag), matching the HTML output.
+
+### Fixed
+
+- PDF tables now wrap their cell contents instead of overflowing off the right
+  edge of the page; long unbroken tokens in paragraphs, lists, headings and
+  code blocks are also wrapped.
+- Ordered and unordered list items that wrap across multiple source lines now
+  render as a single list with correct numbering, in both HTML and PDF
+  (previously each wrapped item became its own list item numbered "1").
+
 ## [0.2.1]
 
 ### Fixed

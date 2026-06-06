@@ -6,7 +6,7 @@ deliberate release-bearing change.
 
 module(
     name = "rules_farakov_documentation",
-    version = "0.2.1",
+    version = "0.2.2",
 )
 
 # --- Pinned toolchains ---------------------------------------------------

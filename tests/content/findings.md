@@ -27,3 +27,10 @@ The application does not set `Content-Security-Policy`. Add the following:
 - `Strict-Transport-Security`
 
 > Defense in depth: headers complement, but do not replace, input validation.
+
+## Remediation Steps
+
+1. Parameterize all queries and review the data-access layer for any remaining
+   string concatenation.
+2. Add the missing security headers at the edge proxy.
+3. Add regression tests so the headers cannot silently regress.
