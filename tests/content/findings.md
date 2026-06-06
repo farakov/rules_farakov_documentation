@@ -1,6 +1,7 @@
 # Findings
 
-The findings below are ordered by severity.
+The findings below are ordered by severity — including those the client called
+“critical” and the team’s notes on response times → remediation.
 
 ## SQL Injection in Search Endpoint
 

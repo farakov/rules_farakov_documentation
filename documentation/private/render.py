@@ -493,7 +493,38 @@ def pdf_inline(text):
     text = _PDF_INLINE_CODE.sub(lambda m: m.group(1), text)
     text = _PDF_BOLD.sub(lambda m: m.group(1), text)
     text = _PDF_ITALIC.sub(lambda m: m.group(1), text)
-    return text
+    return pdf_latin1_safe(text)
+
+
+# fpdf2's core fonts (Helvetica/Courier) are Latin-1 only. Map common Unicode
+# punctuation to safe equivalents, then drop anything still unrepresentable, so
+# arbitrary Markdown content renders without crashing.
+_PDF_CHAR_MAP = {
+    "\u2014": "-",   # em dash
+    "\u2013": "-",   # en dash
+    "\u2018": "'",   # left single quote
+    "\u2019": "'",   # right single quote / apostrophe
+    "\u201c": '"',   # left double quote
+    "\u201d": '"',   # right double quote
+    "\u2026": "...",  # ellipsis
+    "\u00a0": " ",   # non-breaking space
+    "\u2022": "-",   # bullet
+    "\u2192": "->",  # right arrow
+    "\u2190": "<-",  # left arrow
+    "\u2264": "<=",
+    "\u2265": ">=",
+    "\u00d7": "x",   # multiplication sign
+    "\u2212": "-",   # minus sign
+}
+
+
+def pdf_latin1_safe(text):
+    for src, dst in _PDF_CHAR_MAP.items():
+        if src in text:
+            text = text.replace(src, dst)
+    # Drop any remaining characters Latin-1 can't encode (rare), rather than
+    # crash the whole render.
+    return text.encode("latin-1", "replace").decode("latin-1")
 
 
 def parse_blocks(lines):
@@ -616,12 +647,12 @@ def build_pdf(request, theme, pdf_out):
         pdf.set_y(70)
     pdf.set_text_color(*text_rgb)
     pdf.set_font("Helvetica", "B", 26)
-    pdf.multi_cell(epw, 12, meta.get("title", "Untitled"), align="C")
+    pdf.multi_cell(epw, 12, pdf_latin1_safe(meta.get("title", "Untitled")), align="C")
     if meta.get("subtitle"):
         pdf.ln(2)
         pdf.set_font("Helvetica", "", 14)
         pdf.set_text_color(*muted_rgb)
-        pdf.multi_cell(epw, 8, meta["subtitle"], align="C")
+        pdf.multi_cell(epw, 8, pdf_latin1_safe(meta["subtitle"]), align="C")
     pdf.ln(10)
     pdf.set_font("Helvetica", "", 11)
     pdf.set_text_color(*muted_rgb)
@@ -635,11 +666,11 @@ def build_pdf(request, theme, pdf_out):
     if meta.get("date"):
         metabits.append(str(meta["date"]))
     if metabits:
-        pdf.multi_cell(epw, 6, "  -  ".join(metabits), align="C")
+        pdf.multi_cell(epw, 6, pdf_latin1_safe("  -  ".join(metabits)), align="C")
     if branding.get("website"):
         pdf.ln(2)
         pdf.set_text_color(*primary)
-        pdf.multi_cell(epw, 6, branding["website"], align="C")
+        pdf.multi_cell(epw, 6, pdf_latin1_safe(branding["website"]), align="C")
 
     # --- Content ---
     pdf.add_page()
@@ -668,7 +699,7 @@ def _pdf_heading(pdf, level, text, primary, text_rgb, epw):
     pdf.ln(4 if level > 1 else 6)
     pdf.set_font("Helvetica", "B", size)
     pdf.set_text_color(*(primary if level == 1 else text_rgb))
-    pdf.multi_cell(epw, size * 0.5, text)
+    pdf.multi_cell(epw, size * 0.5, pdf_latin1_safe(text))
     if level == 1:
         y = pdf.get_y() + 1
         pdf.set_draw_color(*primary)
@@ -693,7 +724,7 @@ def _pdf_render_blocks(pdf, blocks, primary, text_rgb, muted_rgb, code_bg, epw):
             pdf.set_fill_color(*code_bg)
             pdf.set_text_color(*text_rgb)
             for ln in payload.split("\n"):
-                pdf.multi_cell(epw, 5, ln or " ", fill=True)
+                pdf.multi_cell(epw, 5, pdf_latin1_safe(ln) or " ", fill=True)
             pdf.ln(2)
         elif kind in ("ulist", "olist"):
             pdf.set_font("Helvetica", "", 11)

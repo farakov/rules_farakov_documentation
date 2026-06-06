@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1]
+
+### Fixed
+
+- PDF output is now resilient to consumers that don't register a Python
+  toolchain: the renderer runs under a version-pinned Python 3.12 binary so the
+  pinned wheels (fpdf2 et al.) always resolve.
+- PDF rendering no longer crashes on non-Latin-1 characters (em/en dashes,
+  smart quotes, ellipses, arrows, etc.); they are mapped to safe equivalents,
+  with any remaining unrepresentable characters replaced rather than fatal.
+
 ## [0.2.0]
 
 ### Added
