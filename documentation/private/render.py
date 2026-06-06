@@ -307,39 +307,51 @@ def build_css(theme):
 :root {{
   --text: {text}; --bg: {background}; --primary: {primary};
   --muted: {muted}; --border: {border}; --code-bg: {code_bg};
+  color-scheme: dark;
 }}
 * {{ box-sizing: border-box; }}
+html {{ background: var(--bg); }}
 body {{
   margin: 0; color: var(--text); background: var(--bg);
   font-family: {body_font}; font-size: {base_size}; line-height: {line_height};
+  -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
 }}
+::selection {{ background: var(--primary); color: var(--bg); }}
 main {{ max-width: {max_width}; margin: 0 auto; padding: 3rem 1.5rem 6rem; }}
 h1, h2, h3, h4, h5, h6 {{
-  font-family: {heading_font}; line-height: 1.25; margin-top: 2rem;
+  font-family: {heading_font}; font-weight: 600; line-height: 1.25;
+  margin-top: 2.25rem; letter-spacing: -0.01em;
 }}
-h1 {{ font-size: 2.2rem; border-bottom: 2px solid var(--primary); padding-bottom: .3rem; }}
-h2 {{ font-size: 1.7rem; border-bottom: 1px solid var(--border); padding-bottom: .2rem; }}
-a {{ color: var(--primary); text-decoration: none; }}
-a:hover {{ text-decoration: underline; }}
-code {{ font-family: {mono_font}; background: var(--code-bg); padding: .15em .35em; border-radius: 4px; font-size: .9em; }}
-pre {{ background: var(--code-bg); padding: 1rem; border-radius: 8px; overflow-x: auto; border: 1px solid var(--border); }}
-pre code {{ background: none; padding: 0; }}
-blockquote {{ margin: 1rem 0; padding: .5rem 1rem; border-left: 4px solid var(--primary); color: var(--muted); background: var(--code-bg); }}
+h1 {{ font-size: 2.1rem; border-bottom: 1px solid var(--primary); padding-bottom: .35rem; }}
+h2 {{ font-size: 1.55rem; border-bottom: 1px solid var(--border); padding-bottom: .25rem; }}
+h3 {{ font-size: 1.2rem; }}
+p {{ margin: 0 0 1rem; }}
+a {{ color: var(--text); text-decoration: underline; text-underline-offset: 2px; text-decoration-color: var(--muted); }}
+a:hover {{ text-decoration-color: var(--primary); }}
+code {{ font-family: {mono_font}; background: var(--code-bg); border: 1px solid var(--border); padding: .1em .35em; font-size: .88em; }}
+pre {{ background: var(--code-bg); padding: 1rem; overflow-x: auto; border: 1px solid var(--border); }}
+pre code {{ background: none; border: none; padding: 0; }}
+blockquote {{ margin: 1rem 0; padding: .5rem 1rem; border-left: 2px solid var(--primary); color: var(--muted); background: var(--code-bg); }}
 table {{ border-collapse: collapse; width: 100%; margin: 1rem 0; }}
 th, td {{ border: 1px solid var(--border); padding: .5rem .75rem; text-align: left; }}
-th {{ background: var(--code-bg); }}
+th {{ background: var(--code-bg); font-weight: 600; }}
 hr {{ border: none; border-top: 1px solid var(--border); margin: 2rem 0; }}
 img {{ max-width: 100%; }}
-.cover {{ text-align: center; padding: 6rem 0 4rem; border-bottom: 1px solid var(--border); margin-bottom: 2rem; }}
+.cover {{ text-align: center; padding: 5rem 0 3.5rem; border-bottom: 1px solid var(--border); margin-bottom: 2.5rem; }}
 .cover .logo {{ margin: 0 auto 2rem; max-width: 140px; }}
 .cover .logo svg {{ width: 100%; height: auto; max-height: 140px; }}
-.cover h1 {{ border: none; font-size: 3rem; margin-bottom: .5rem; }}
-.cover .subtitle {{ color: var(--muted); font-size: 1.3rem; }}
-.cover .meta {{ margin-top: 2rem; color: var(--muted); font-size: .95rem; }}
-.cover .website {{ margin-top: .75rem; font-size: .95rem; }}
-.toc {{ background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.5rem; margin-bottom: 2rem; }}
-.toc h2 {{ border: none; margin-top: 0; font-size: 1.2rem; }}
-.toc ul {{ list-style: none; padding-left: 0; }}
+.cover h1 {{ border: none; font-size: 2.8rem; margin-bottom: .5rem; }}
+.cover .subtitle {{ color: var(--muted); font-size: 1.25rem; font-weight: 400; }}
+.cover .meta {{ margin-top: 2rem; color: var(--muted); font-size: .9rem; }}
+.cover .website {{ margin-top: .75rem; font-size: .9rem; }}
+.cover .website a {{ color: var(--muted); text-decoration-color: var(--border); }}
+.cover .website a:hover {{ color: var(--text); text-decoration-color: var(--muted); }}
+.toc {{ background: var(--code-bg); border: 1px solid var(--border); padding: 1rem 1.5rem; margin-bottom: 2.5rem; }}
+.toc h2 {{ border: none; margin-top: 0; font-size: 1.1rem; }}
+.toc ul {{ list-style: none; padding-left: 0; margin: 0; }}
+.toc li {{ padding: .15rem 0; }}
+.toc a {{ color: var(--muted); text-decoration: none; }}
+.toc a:hover {{ color: var(--text); }}
 .toc .lvl-2 {{ padding-left: 1rem; }}
 .toc .lvl-3 {{ padding-left: 2rem; }}
 .toc .lvl-4 {{ padding-left: 3rem; }}
@@ -664,8 +676,21 @@ def build_pdf(request, theme, pdf_out):
     text_rgb = _hex_to_rgb(colors.get("text"), (26, 26, 26))
     muted_rgb = _hex_to_rgb(colors.get("muted"), (106, 115, 125))
     code_bg = _hex_to_rgb(colors.get("code_bg"), (246, 248, 250))
+    page_bg = _hex_to_rgb(colors.get("background"), (255, 255, 255))
+    border_rgb = _hex_to_rgb(colors.get("border"), (200, 200, 200))
 
-    pdf = FPDF(format="A4", unit="mm")
+    class ThemedPDF(FPDF):
+        # Paint the theme background on every page. fpdf2 invokes header() right
+        # after each add_page(), before any content, so this fills the page
+        # edge-to-edge and keeps light-on-dark themes legible in the PDF (the
+        # default page is white).
+        def header(self):
+            if page_bg == (255, 255, 255):
+                return  # nothing to paint for a white-background theme
+            self.set_fill_color(*page_bg)
+            self.rect(0, 0, self.w, self.h, style="F")
+
+    pdf = ThemedPDF(format="A4", unit="mm")
     pdf.set_auto_page_break(auto=True, margin=20)
     pdf.set_margins(20, 20, 20)
     pdf.set_title(meta.get("title", "Documentation"))
@@ -759,7 +784,7 @@ def build_pdf(request, theme, pdf_out):
 
     # --- Content ---
     pdf.add_page()
-    _pdf_render_blocks(pdf, doc_blocks, primary, text_rgb, muted_rgb, code_bg, epw)
+    _pdf_render_blocks(pdf, doc_blocks, primary, text_rgb, muted_rgb, code_bg, border_rgb, epw)
 
     pdf.output(pdf_out)
 
@@ -780,7 +805,7 @@ def _pdf_heading(pdf, level, text, primary, text_rgb, epw):
         pdf.ln(1)
 
 
-def _pdf_render_blocks(pdf, blocks, primary, text_rgb, muted_rgb, code_bg, epw):
+def _pdf_render_blocks(pdf, blocks, primary, text_rgb, muted_rgb, code_bg, border_rgb, epw):
     for kind, payload in blocks:
         if kind == "heading":
             _pdf_heading(pdf, payload[0], payload[1], primary, text_rgb, epw)
@@ -809,24 +834,25 @@ def _pdf_render_blocks(pdf, blocks, primary, text_rgb, muted_rgb, code_bg, epw):
         elif kind == "quote":
             pdf.set_font("Helvetica", "I", 11)
             pdf.set_text_color(*muted_rgb)
+            pdf.set_draw_color(*primary)  # left rule matches HTML blockquote
             _mc(pdf, epw, 6, payload, border="L", wrapmode="CHAR")
             pdf.ln(2)
         elif kind == "table":
-            _pdf_table(pdf, payload[0], payload[1], primary, text_rgb, code_bg, epw)
+            _pdf_table(pdf, payload[0], payload[1], primary, text_rgb, code_bg, border_rgb, epw)
         elif kind == "hr":
             y = pdf.get_y() + 1
-            pdf.set_draw_color(200, 200, 200)
+            pdf.set_draw_color(*border_rgb)
             pdf.line(pdf.l_margin, y, pdf.l_margin + epw, y)
             pdf.ln(4)
 
 
-def _pdf_table(pdf, header, rows, primary, text_rgb, code_bg, epw):
+def _pdf_table(pdf, header, rows, primary, text_rgb, code_bg, border_rgb, epw):
     """Render a table with wrapping cells so content never runs off the page."""
     from fpdf.enums import TableCellFillMode
     from fpdf.fonts import FontFace
 
     pdf.ln(1)
-    pdf.set_draw_color(200, 200, 200)
+    pdf.set_draw_color(*border_rgb)
     pdf.set_text_color(*text_rgb)
     pdf.set_font("Helvetica", "", 10)
     with pdf.table(

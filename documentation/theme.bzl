@@ -57,7 +57,9 @@ doc_theme = rule(
             doc = "Human-readable theme name. Defaults to the target name.",
         ),
         "colors": attr.string_dict(
-            doc = "Color overrides: text, background, primary, muted, border, code_bg.",
+            doc = "Color overrides (hex): text, background, primary, muted, border, code_bg. " +
+                  "A non-white background is also painted in the PDF output, so " +
+                  "dark themes render correctly in both HTML and PDF.",
         ),
         "typography": attr.string_dict(
             doc = "Typography overrides: body_font, heading_font, mono_font, base_size, line_height.",

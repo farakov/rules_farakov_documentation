@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0]
+
+### Added
+
+- PDF output now paints the theme's `background` color on every page, so
+  light-on-dark (dark mode) themes render correctly in PDF as well as HTML.
+  White-background themes are unaffected (no redundant fill).
+
+### Changed
+
+- The bundled `//company` theme now matches the Farakov website: a clean,
+  restrained dark monochrome palette (near-black surfaces, near-white text,
+  hairline borders) with SF Pro typography and square corners.
+- HTML rendering polish for dark themes: `color-scheme: dark`, underlined links
+  that stay legible without relying on a hue, themed text selection, and
+  square (non-rounded) code/quote/table/TOC surfaces.
+
 ## [0.2.3]
 
 ### Fixed

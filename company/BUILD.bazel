@@ -17,19 +17,33 @@ exports_files(["defs.bzl"])
 
 # --- Standard corporate theme --------------------------------------------
 
+# Dark, monochrome theme matching the Farakov website (farakov-lander).
+#
+# The palette is derived from the site's design tokens (oklch -> sRGB):
+# near-black surfaces, near-white text, a single near-white "primary" accent
+# and hairline borders. The look is intentionally clean and restrained rather
+# than flashy. Typography mirrors the site: SF Pro with a system-sans fallback.
 doc_theme(
     name = "company_theme",
     theme_name = "company",
     colors = {
-        "primary": "#0b3d91",
-        "text": "#15202b",
-        "muted": "#5a6b7b",
-        "border": "#c9d4df",
-        "code_bg": "#f2f6fb",
+        # --foreground / --background: near-white text on near-black.
+        "text": "#fafafa",
+        "background": "#0a0a0a",
+        # --primary: near-white. Used for headings, rules and links. The theme
+        # is monochrome, so accent == bright neutral rather than a hue.
+        "primary": "#e5e5e5",
+        # --muted-foreground: secondary text, captions, the cover meta line.
+        "muted": "#a1a1a1",
+        # --border at ~10% white over the background: a hairline divider.
+        "border": "#262626",
+        # --card: slightly raised surface for code, quotes, TOC and table heads.
+        "code_bg": "#171717",
     },
     typography = {
-        "heading_font": "Helvetica Neue, Helvetica, Arial, sans-serif",
-        "body_font": "Helvetica Neue, Helvetica, Arial, sans-serif",
+        "heading_font": "'SF Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif",
+        "body_font": "'SF Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif",
+        "mono_font": "'SF Mono', ui-monospace, Menlo, Consolas, monospace",
     },
     max_width = "880px",
     logo = "assets/farakov-logo.svg",
