@@ -250,7 +250,31 @@ _DEFAULT_THEME = {
         "show_toc": True,
         "show_cover": True,
     },
+    "branding": {
+        # Path (exec-relative) to an SVG logo inlined onto the cover page.
+        "logo_path": None,
+        # Optional company website shown/linked on the cover.
+        "website": None,
+    },
 }
+
+
+_XML_DECL = re.compile(r"<\?xml[^>]*\?>", re.IGNORECASE)
+_XML_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
+_DOCTYPE = re.compile(r"<!DOCTYPE[^>]*>", re.IGNORECASE)
+
+
+def inline_svg(path):
+    """Read an SVG file and return markup safe to embed directly in HTML.
+
+    Strips the XML prolog, doctype and comments so the <svg> element can be
+    dropped inline. The output stays a single self-contained HTML file.
+    """
+    raw = read_text(path)
+    raw = _XML_DECL.sub("", raw)
+    raw = _DOCTYPE.sub("", raw)
+    raw = _XML_COMMENT.sub("", raw)
+    return raw.strip()
 
 
 def deep_merge(base, override):
@@ -295,9 +319,12 @@ th {{ background: var(--code-bg); }}
 hr {{ border: none; border-top: 1px solid var(--border); margin: 2rem 0; }}
 img {{ max-width: 100%; }}
 .cover {{ text-align: center; padding: 6rem 0 4rem; border-bottom: 1px solid var(--border); margin-bottom: 2rem; }}
+.cover .logo {{ margin: 0 auto 2rem; max-width: 140px; }}
+.cover .logo svg {{ width: 100%; height: auto; max-height: 140px; }}
 .cover h1 {{ border: none; font-size: 3rem; margin-bottom: .5rem; }}
 .cover .subtitle {{ color: var(--muted); font-size: 1.3rem; }}
 .cover .meta {{ margin-top: 2rem; color: var(--muted); font-size: .95rem; }}
+.cover .website {{ margin-top: .75rem; font-size: .95rem; }}
 .toc {{ background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.5rem; margin-bottom: 2rem; }}
 .toc h2 {{ border: none; margin-top: 0; font-size: 1.2rem; }}
 .toc ul {{ list-style: none; padding-left: 0; }}
@@ -329,8 +356,11 @@ def read_text(path):
         return handle.read()
 
 
-def render_cover(meta):
+def render_cover(meta, branding):
     parts = ['<header class="cover">']
+    logo_path = (branding or {}).get("logo_path")
+    if logo_path:
+        parts.append('<div class="logo">%s</div>' % inline_svg(logo_path))
     parts.append("<h1>%s</h1>" % html.escape(meta.get("title", "Untitled")))
     if meta.get("subtitle"):
         parts.append('<div class="subtitle">%s</div>' % html.escape(meta["subtitle"]))
@@ -345,6 +375,11 @@ def render_cover(meta):
         metabits.append(html.escape(str(meta["date"])))
     if metabits:
         parts.append('<div class="meta">%s</div>' % " &middot; ".join(metabits))
+    website = (branding or {}).get("website")
+    if website:
+        safe = html.escape(website)
+        display = safe.replace("https://", "").replace("http://", "").rstrip("/")
+        parts.append('<div class="website"><a href="%s">%s</a></div>' % (safe, display))
     parts.append("</header>")
     return "\n".join(parts)
 
@@ -391,7 +426,7 @@ def build_document(request):
 
     body_parts = []
     if layout.get("show_cover", True):
-        body_parts.append(render_cover(meta))
+        body_parts.append(render_cover(meta, theme.get("branding")))
     if layout.get("show_toc", True):
         body_parts.append(render_toc(renderer.toc))
     body_parts.extend(renderer.out)

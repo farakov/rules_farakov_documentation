@@ -32,6 +32,8 @@ doc_theme(
         "body_font": "Helvetica Neue, Helvetica, Arial, sans-serif",
     },
     max_width = "880px",
+    logo = "assets/farakov-logo.svg",
+    website = "https://farakov.com",
     show_cover = True,
     show_toc = True,
 )

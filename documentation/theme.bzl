@@ -13,11 +13,21 @@ def _doc_theme_impl(ctx):
         "colors": {k: v for k, v in ctx.attr.colors.items() if v},
         "typography": {k: v for k, v in ctx.attr.typography.items() if v},
         "layout": {},
+        "branding": {},
     }
     if ctx.attr.max_width:
         config["layout"]["max_width"] = ctx.attr.max_width
     config["layout"]["show_toc"] = ctx.attr.show_toc
     config["layout"]["show_cover"] = ctx.attr.show_cover
+
+    logo = None
+    if ctx.file.logo:
+        logo = ctx.file.logo
+        # The renderer reads the SVG from this exec-relative path at action
+        # time; the package rule adds the logo as an action input.
+        config["branding"]["logo_path"] = logo.path
+    if ctx.attr.website:
+        config["branding"]["website"] = ctx.attr.website
 
     config_file = ctx.actions.declare_file(ctx.label.name + ".theme.json")
     ctx.actions.write(
@@ -25,13 +35,17 @@ def _doc_theme_impl(ctx):
         content = json.encode_indent(config, indent = "  "),
     )
 
-    assets = depset(ctx.files.assets)
+    asset_files = list(ctx.files.assets)
+    if logo:
+        asset_files.append(logo)
+    assets = depset(asset_files)
     return [
         DefaultInfo(files = depset([config_file], transitive = [assets])),
         DocThemeInfo(
             name = config["name"],
             config = config_file,
             assets = assets,
+            logo = logo,
         ),
     ]
 
@@ -50,6 +64,13 @@ doc_theme = rule(
         ),
         "max_width": attr.string(
             doc = "Content max width, e.g. '820px'.",
+        ),
+        "logo": attr.label(
+            allow_single_file = [".svg"],
+            doc = "An SVG logo inlined onto the cover page of packages using this theme.",
+        ),
+        "website": attr.string(
+            doc = "Company/website URL shown and linked on the cover page.",
         ),
         "show_toc": attr.bool(
             default = True,

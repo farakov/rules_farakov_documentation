@@ -79,6 +79,23 @@ documentation_package(
     theme = ":corporate_theme",
 )
 
+# --- Package (branded theme with logo + website) -------------------------
+
+doc_theme(
+    name = "branded_theme",
+    theme_name = "branded",
+    colors = {"primary": "#0f8a5f"},
+    logo = "content/test-logo.svg",
+    website = "https://example.com",
+)
+
+documentation_package(
+    name = "branded_doc",
+    title = "Branded Doc",
+    sections = [":summary"],
+    theme = ":branded_theme",
+)
+
 # --- Assertions -----------------------------------------------------------
 
 output_contains_test(
@@ -103,5 +120,16 @@ manifest_contains_test(
         "\"theme\": \"corporate\"",
         "\"section_count\": 2",
         "\"package\": \"security_assessment\"",
+    ],
+)
+
+output_contains_test(
+    name = "branded_logo_test",
+    target = ":branded_doc",
+    expected = [
+        "class=\"logo\"",
+        "<svg",
+        "class=\"website\"",
+        "example.com",
     ],
 )

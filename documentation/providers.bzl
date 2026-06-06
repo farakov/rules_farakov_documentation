@@ -11,6 +11,7 @@ DocThemeInfo = provider(
         "name": "str: human-readable theme name.",
         "config": "File: a normalized JSON file describing the theme.",
         "assets": "depset[File]: theme assets (fonts, logos, css) to bundle.",
+        "logo": "File or None: an SVG logo inlined onto the cover page.",
     },
 )
 

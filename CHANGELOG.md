@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0]
+
+### Added
+
+- `doc_theme` now supports a `logo` (inlined SVG) and `website` attribute.
+  Logos are embedded directly into the cover page so rendered HTML remains a
+  single self-contained file; the website is shown and linked on the cover.
+- Company theme (`//company:company_theme`) ships the Farakov logo and website.
+
+## [0.0.0]
+
 ### Added
 
 - Initial implementation of the documentation ruleset.
