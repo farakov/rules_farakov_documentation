@@ -33,6 +33,11 @@ _IMAGE = re.compile(r"!\[([^\]]*)\]\(([^)\s]+)(?:\s+\"([^\"]*)\")?\)")
 _LINK = re.compile(r"\[([^\]]+)\]\(([^)\s]+)(?:\s+\"([^\"]*)\")?\)")
 _BOLD = re.compile(r"\*\*([^*]+)\*\*")
 _ITALIC = re.compile(r"(?<!\*)\*([^*]+)\*(?!\*)")
+# Underscore emphasis, but only at word boundaries so intraword underscores in
+# identifiers (e.g. reset_password, email_password) are left literal, matching
+# CommonMark. The closing run must not be inside a word either.
+_BOLD_U = re.compile(r"(?<![\w_])__(?!_)(\S(?:[^_]*\S)?)__(?![\w_])")
+_ITALIC_U = re.compile(r"(?<![\w_])_(?!_)(\S(?:[^_]*\S)?)_(?![\w_])")
 
 
 def render_inline(text):
@@ -68,6 +73,8 @@ def render_inline(text):
     )
     text = _BOLD.sub(lambda m: "<strong>%s</strong>" % m.group(1), text)
     text = _ITALIC.sub(lambda m: "<em>%s</em>" % m.group(1), text)
+    text = _BOLD_U.sub(lambda m: "<strong>%s</strong>" % m.group(1), text)
+    text = _ITALIC_U.sub(lambda m: "<em>%s</em>" % m.group(1), text)
 
     for token, value in placeholders.items():
         text = text.replace(token, value)
@@ -506,6 +513,8 @@ def build_document(request):
 _PDF_INLINE_CODE = re.compile(r"`([^`]+)`")
 _PDF_BOLD = re.compile(r"\*\*([^*]+)\*\*")
 _PDF_ITALIC = re.compile(r"(?<!\*)\*([^*]+)\*(?!\*)")
+_PDF_BOLD_U = re.compile(r"(?<![\w_])__(?!_)(\S(?:[^_]*\S)?)__(?![\w_])")
+_PDF_ITALIC_U = re.compile(r"(?<![\w_])_(?!_)(\S(?:[^_]*\S)?)_(?![\w_])")
 _PDF_IMAGE = re.compile(r"!\[([^\]]*)\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 _PDF_LINK = re.compile(r"\[([^\]]+)\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 
@@ -517,6 +526,8 @@ def pdf_inline(text):
     text = _PDF_INLINE_CODE.sub(lambda m: m.group(1), text)
     text = _PDF_BOLD.sub(lambda m: m.group(1), text)
     text = _PDF_ITALIC.sub(lambda m: m.group(1), text)
+    text = _PDF_BOLD_U.sub(lambda m: m.group(1), text)
+    text = _PDF_ITALIC_U.sub(lambda m: m.group(1), text)
     return pdf_latin1_safe(text)
 
 
@@ -795,7 +806,7 @@ def _pdf_heading(pdf, level, text, primary, text_rgb, epw):
     pdf.ln(4 if level > 1 else 6)
     pdf.set_font("Helvetica", "B", size)
     pdf.set_text_color(*(primary if level == 1 else text_rgb))
-    _mc(pdf, epw, size * 0.5, pdf_latin1_safe(text), wrapmode="CHAR")
+    _mc(pdf, epw, size * 0.5, pdf_latin1_safe(text))
     if level == 1:
         y = pdf.get_y() + 1
         pdf.set_draw_color(*primary)
@@ -812,7 +823,7 @@ def _pdf_render_blocks(pdf, blocks, primary, text_rgb, muted_rgb, code_bg, borde
         elif kind == "paragraph":
             pdf.set_font("Helvetica", "", 11)
             pdf.set_text_color(*text_rgb)
-            _mc(pdf, epw, 6, payload, wrapmode="CHAR")
+            _mc(pdf, epw, 6, payload)
             pdf.ln(2)
         elif kind == "code":
             pdf.ln(1)
@@ -829,13 +840,13 @@ def _pdf_render_blocks(pdf, blocks, primary, text_rgb, muted_rgb, code_bg, borde
             pdf.set_text_color(*text_rgb)
             for idx, item in enumerate(payload, start=1):
                 bullet = ("%d. " % idx) if kind == "olist" else "-  "
-                _mc(pdf, epw, 6, bullet + item, wrapmode="CHAR")
+                _mc(pdf, epw, 6, bullet + item)
             pdf.ln(2)
         elif kind == "quote":
             pdf.set_font("Helvetica", "I", 11)
             pdf.set_text_color(*muted_rgb)
             pdf.set_draw_color(*primary)  # left rule matches HTML blockquote
-            _mc(pdf, epw, 6, payload, border="L", wrapmode="CHAR")
+            _mc(pdf, epw, 6, payload, border="L")
             pdf.ln(2)
         elif kind == "table":
             _pdf_table(pdf, payload[0], payload[1], primary, text_rgb, code_bg, border_rgb, epw)

@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1]
+
+### Fixed
+
+- PDF prose (paragraphs, headings, list items, blockquotes) now wraps on word
+  boundaries instead of character boundaries, so words are no longer broken
+  mid-token and punctuation is no longer pushed onto the next line. Code blocks
+  keep character-level wrapping so long URLs and hashes never overflow the page.
+- Underscore emphasis (`_italic_`, `__bold__`) is now recognized in both the
+  HTML and PDF backends. Intraword underscores in identifiers (e.g.
+  `reset_password`, `email_password`) are left literal, matching CommonMark, so
+  they are never accidentally italicized.
+
 ## [0.3.0]
 
 ### Added

@@ -18,6 +18,7 @@ class _FakePDF:
         self.x = l_margin
         self.y = 20.0
         self.starts = []  # x position at the start of each multi_cell
+        self.calls = []  # (text, wrapmode) for each multi_cell
 
     # Geometry helpers used by the renderer.
     def set_x(self, x):
@@ -49,6 +50,7 @@ class _FakePDF:
 
     def multi_cell(self, w, h, text, new_x="RIGHT", new_y="NEXT", **k):
         self.starts.append(round(self.x, 2))
+        self.calls.append((text, k.get("wrapmode", "WORD")))
         # Emulate fpdf2: with new_x="RIGHT" the cursor is left at the right edge;
         # with new_x="LMARGIN" it returns to the left margin.
         if new_x == "LMARGIN":
@@ -95,6 +97,54 @@ class ListRenderingTest(unittest.TestCase):
             epw=pdf.epw,
         )
         self.assertTrue(all(s == pdf.l_margin for s in pdf.starts), pdf.starts)
+
+
+class WrapModeTest(unittest.TestCase):
+    """Prose must wrap on word boundaries; code on character boundaries.
+
+    Character-level wrapping in prose breaks words mid-token and pushes
+    punctuation onto the next line, so prose blocks must use word wrapping
+    (the fpdf2 default, which still falls back to char-breaking a single
+    token wider than the cell). Code blocks keep CHAR so long URLs and
+    hashes never run off the page.
+    """
+
+    def _render(self, blocks):
+        pdf = _FakePDF()
+        render._pdf_render_blocks(
+            pdf, blocks,
+            primary=(0, 0, 0), text_rgb=(0, 0, 0),
+            muted_rgb=(0, 0, 0), code_bg=(255, 255, 255),
+            border_rgb=(0, 0, 0),
+            epw=pdf.epw,
+        )
+        return pdf.calls
+
+    def test_prose_blocks_use_word_wrapping(self):
+        blocks = [
+            ("heading", (2, "A heading that is long enough to wrap")),
+            ("paragraph", "A paragraph, with a comma, that should wrap on words."),
+            ("ulist", ["A bullet item, with punctuation, that wraps"]),
+            ("quote", "A quoted sentence, with a comma, wrapping nicely."),
+        ]
+        for text, wrapmode in self._render(blocks):
+            self.assertNotEqual(
+                wrapmode, "CHAR",
+                "prose multi_cell used CHAR wrapping (breaks words mid-token): "
+                "%r" % (text,),
+            )
+
+    def test_code_blocks_use_char_wrapping(self):
+        blocks = [
+            ("code", "https://example.com/a/very/long/unbroken/url/that/overflows"),
+        ]
+        calls = self._render(blocks)
+        self.assertTrue(calls, "code block produced no multi_cell calls")
+        for _text, wrapmode in calls:
+            self.assertEqual(
+                wrapmode, "CHAR",
+                "code multi_cell must use CHAR so long tokens never overflow",
+            )
 
 
 class DarkThemeTest(unittest.TestCase):
@@ -158,6 +208,35 @@ class DarkThemeTest(unittest.TestCase):
         # A white-background theme should not paint a redundant full-page rect.
         bg = render._hex_to_rgb("#ffffff")
         self.assertEqual(bg, (255, 255, 255))
+
+
+class EmphasisTest(unittest.TestCase):
+    """Underscore emphasis must render, but intraword underscores stay literal.
+
+    Identifiers like reset_password and email_password are common in this
+    project's content and must never be italicized.
+    """
+
+    def test_underscore_italic_renders(self):
+        self.assertEqual(render.render_inline("_pending_"), "<em>pending</em>")
+        self.assertEqual(render.pdf_inline("_pending_"), "pending")
+
+    def test_underscore_bold_renders(self):
+        self.assertEqual(render.render_inline("__done__"), "<strong>done</strong>")
+        self.assertEqual(render.pdf_inline("__done__"), "done")
+
+    def test_intraword_underscores_stay_literal(self):
+        for ident in ("reset_password", "email_password", "snake_case_name"):
+            self.assertEqual(render.render_inline(ident), ident)
+            self.assertEqual(render.pdf_inline(ident), ident)
+
+    def test_mixed_emphasis_and_identifier(self):
+        src = "set _pending_ on reset_password"
+        self.assertEqual(
+            render.render_inline(src),
+            "set <em>pending</em> on reset_password",
+        )
+        self.assertEqual(render.pdf_inline(src), "set pending on reset_password")
 
 
 if __name__ == "__main__":
