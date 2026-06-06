@@ -33,8 +33,11 @@ jobs:
           artifact="rules_farakov_documentation-${{ steps.semver.outputs.version }}.tar.gz"
           git archive --format=tar.gz --prefix="rules_farakov_documentation-${{ steps.semver.outputs.version }}/" -o "$artifact" HEAD
           sha256sum "$artifact" > "$artifact.sha256"
+          # Bazel's `integrity` field requires a base64-encoded SRI digest
+          # (sha256-<base64>), NOT the hex digest emitted by sha256sum.
+          artifact_sri="$(openssl dgst -sha256 -binary "$artifact" | openssl base64 -A)"
           echo "artifact=$artifact" >> $GITHUB_ENV
-          echo "artifact_sha=$(cut -d' ' -f1 "$artifact.sha256")" >> $GITHUB_ENV
+          echo "artifact_sri=$artifact_sri" >> $GITHUB_ENV
 
       - name: Extract changelog section
         id: changelog
@@ -69,7 +72,7 @@ jobs:
               module_name = "rules_farakov_documentation",
               urls = ["https://github.com/${{ github.repository }}/releases/download/${{ steps.semver.outputs.tag }}/${{ env.artifact }}"],
               strip_prefix = "rules_farakov_documentation-${{ steps.semver.outputs.version }}",
-              integrity = "sha256-${{ env.artifact_sha }}",
+              integrity = "sha256-${{ env.artifact_sri }}",
           )
           \`\`\`
           EOF
