@@ -510,6 +510,12 @@ def build_document(request):
 # CSS (fpdf2 is not a browser), so the PDF is a clean, professional rendering
 # rather than a pixel-identical copy of the HTML.
 
+# The proportional font family used across the PDF backend. Defaults to fpdf2's
+# Latin-1 core Helvetica; build_pdf() overrides it with an embedded TrueType
+# family when the theme provides typography.pdf_fonts. Code stays monospace
+# (Courier) regardless.
+_PDF_SANS = "Helvetica"
+
 _PDF_INLINE_CODE = re.compile(r"`([^`]+)`")
 _PDF_BOLD = re.compile(r"\*\*([^*]+)\*\*")
 _PDF_ITALIC = re.compile(r"(?<!\*)\*([^*]+)\*(?!\*)")
@@ -707,6 +713,22 @@ def build_pdf(request, theme, pdf_out):
     pdf.set_title(meta.get("title", "Documentation"))
     epw = pdf.epw  # effective page width
 
+    # Embed the theme's TrueType PDF fonts when provided so the PDF matches the
+    # HTML typography instead of falling back to the Latin-1 core Helvetica. The
+    # per-call reset keeps the module-level family from leaking between renders
+    # (the renderer is normally one process per document, but tests reuse it).
+    global _PDF_SANS
+    _PDF_SANS = "Helvetica"
+    pdf_fonts = theme.get("typography", {}).get("pdf_fonts", {})
+    regular = pdf_fonts.get("regular")
+    if regular:
+        family = "ThemeSans"
+        pdf.add_font(family, "", regular)
+        pdf.add_font(family, "B", pdf_fonts.get("bold", regular))
+        pdf.add_font(family, "I", pdf_fonts.get("italic", regular))
+        pdf.add_font(family, "BI", pdf_fonts.get("bold_italic", regular))
+        _PDF_SANS = family
+
     # --- Pass 1: assemble the document model and a flat heading list. ---
     # Each entry in `doc_blocks` is a (kind, payload) tuple; headings carried
     # through here also feed the table of contents.
@@ -744,15 +766,15 @@ def build_pdf(request, theme, pdf_out):
         else:
             pdf.set_y(70)
         pdf.set_text_color(*text_rgb)
-        pdf.set_font("Helvetica", "B", 26)
+        pdf.set_font(_PDF_SANS, "B", 26)
         _mc(pdf, epw, 12, pdf_latin1_safe(meta.get("title", "Untitled")), align="C")
         if meta.get("subtitle"):
             pdf.ln(2)
-            pdf.set_font("Helvetica", "", 14)
+            pdf.set_font(_PDF_SANS, "", 14)
             pdf.set_text_color(*muted_rgb)
             _mc(pdf, epw, 8, pdf_latin1_safe(meta["subtitle"]), align="C")
         pdf.ln(10)
-        pdf.set_font("Helvetica", "", 11)
+        pdf.set_font(_PDF_SANS, "", 11)
         pdf.set_text_color(*muted_rgb)
         metabits = []
         if meta.get("authors"):
@@ -773,7 +795,7 @@ def build_pdf(request, theme, pdf_out):
     # --- Table of contents ---
     if show_toc and toc_entries:
         pdf.add_page()
-        pdf.set_font("Helvetica", "B", 20)
+        pdf.set_font(_PDF_SANS, "B", 20)
         pdf.set_text_color(*primary)
         _mc(pdf, epw, 10, "Contents")
         y = pdf.get_y() + 1
@@ -786,10 +808,10 @@ def build_pdf(request, theme, pdf_out):
             indent = (level - 1) * 6
             pdf.set_x(pdf.l_margin + indent)
             if level == 1:
-                pdf.set_font("Helvetica", "B", 12)
+                pdf.set_font(_PDF_SANS, "B", 12)
                 pdf.set_text_color(*text_rgb)
             else:
-                pdf.set_font("Helvetica", "", 11)
+                pdf.set_font(_PDF_SANS, "", 11)
                 pdf.set_text_color(*muted_rgb)
             _mc(pdf, epw - indent, 7, text)
 
@@ -804,7 +826,7 @@ def _pdf_heading(pdf, level, text, primary, text_rgb, epw):
     sizes = {1: 18, 2: 14, 3: 12}
     size = sizes.get(level, 11)
     pdf.ln(4 if level > 1 else 6)
-    pdf.set_font("Helvetica", "B", size)
+    pdf.set_font(_PDF_SANS, "B", size)
     pdf.set_text_color(*(primary if level == 1 else text_rgb))
     _mc(pdf, epw, size * 0.5, pdf_latin1_safe(text))
     if level == 1:
@@ -821,7 +843,7 @@ def _pdf_render_blocks(pdf, blocks, primary, text_rgb, muted_rgb, code_bg, borde
         if kind == "heading":
             _pdf_heading(pdf, payload[0], payload[1], primary, text_rgb, epw)
         elif kind == "paragraph":
-            pdf.set_font("Helvetica", "", 11)
+            pdf.set_font(_PDF_SANS, "", 11)
             pdf.set_text_color(*text_rgb)
             _mc(pdf, epw, 6, payload)
             pdf.ln(2)
@@ -836,14 +858,14 @@ def _pdf_render_blocks(pdf, blocks, primary, text_rgb, muted_rgb, code_bg, borde
                 _mc(pdf, epw, 5, pdf_latin1_safe(ln) or " ", fill=True, wrapmode="CHAR")
             pdf.ln(2)
         elif kind in ("ulist", "olist"):
-            pdf.set_font("Helvetica", "", 11)
+            pdf.set_font(_PDF_SANS, "", 11)
             pdf.set_text_color(*text_rgb)
             for idx, item in enumerate(payload, start=1):
                 bullet = ("%d. " % idx) if kind == "olist" else "-  "
                 _mc(pdf, epw, 6, bullet + item)
             pdf.ln(2)
         elif kind == "quote":
-            pdf.set_font("Helvetica", "I", 11)
+            pdf.set_font(_PDF_SANS, "I", 11)
             pdf.set_text_color(*muted_rgb)
             pdf.set_draw_color(*primary)  # left rule matches HTML blockquote
             _mc(pdf, epw, 6, payload, border="L")
@@ -865,7 +887,7 @@ def _pdf_table(pdf, header, rows, primary, text_rgb, code_bg, border_rgb, epw):
     pdf.ln(1)
     pdf.set_draw_color(*border_rgb)
     pdf.set_text_color(*text_rgb)
-    pdf.set_font("Helvetica", "", 10)
+    pdf.set_font(_PDF_SANS, "", 10)
     with pdf.table(
         width=epw,
         line_height=6,

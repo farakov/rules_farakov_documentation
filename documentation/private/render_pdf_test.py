@@ -210,6 +210,45 @@ class DarkThemeTest(unittest.TestCase):
         self.assertEqual(bg, (255, 255, 255))
 
 
+class PdfFontTest(unittest.TestCase):
+    """The PDF backend embeds theme fonts when provided, else falls back.
+
+    Without typography.pdf_fonts the PDF must use fpdf2's core Helvetica, and
+    the module-level family must not leak from a previous embedded render (the
+    renderer resets it per call).
+    """
+
+    def _render(self, theme):
+        import os
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as d:
+            src = os.path.join(d, "s.md")
+            with open(src, "w") as fh:
+                fh.write("# Title\n\nBody text.\n")
+            out = os.path.join(d, "out.pdf")
+            request = {
+                "metadata": {"title": "T"},
+                "sections": [{"title": "Title", "sources": [src]}],
+            }
+            render.build_pdf(request, theme, out)
+            return open(out, "rb").read()
+
+    def test_default_theme_uses_core_helvetica(self):
+        data = self._render(render._DEFAULT_THEME)
+        self.assertIn(b"/BaseFont /Helvetica", data)
+        # No embedded font requested, so the module family stays the core font.
+        self.assertEqual(render._PDF_SANS, "Helvetica")
+
+    def test_family_resets_when_no_fonts(self):
+        # Simulate a leaked family from a prior embedded render, then confirm a
+        # font-less render resets it rather than referencing an unregistered
+        # "ThemeSans" family (which would raise inside fpdf2).
+        render._PDF_SANS = "ThemeSans"
+        self._render(render._DEFAULT_THEME)
+        self.assertEqual(render._PDF_SANS, "Helvetica")
+
+
 class EmphasisTest(unittest.TestCase):
     """Underscore emphasis must render, but intraword underscores stay literal.
 

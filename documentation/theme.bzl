@@ -29,6 +29,27 @@ def _doc_theme_impl(ctx):
     if ctx.attr.website:
         config["branding"]["website"] = ctx.attr.website
 
+    # Embedded TrueType faces for the PDF backend. The HTML output styles text
+    # with the CSS `typography` font stacks, but the PDF renderer (fpdf2) needs
+    # the actual font files to embed. Record each provided face in the theme
+    # JSON as an exec-relative path (like the logo); it is also added as a
+    # package action input below. Faces are optional; the renderer falls back to
+    # a core font when none are supplied. This must run before the config is
+    # serialized so the paths land in the written JSON.
+    pdf_font_files = []
+    pdf_fonts = {}
+    for style, f in [
+        ("regular", ctx.file.pdf_font_regular),
+        ("bold", ctx.file.pdf_font_bold),
+        ("italic", ctx.file.pdf_font_italic),
+        ("bold_italic", ctx.file.pdf_font_bold_italic),
+    ]:
+        if f:
+            pdf_fonts[style] = f.path
+            pdf_font_files.append(f)
+    if pdf_fonts:
+        config["typography"]["pdf_fonts"] = pdf_fonts
+
     config_file = ctx.actions.declare_file(ctx.label.name + ".theme.json")
     ctx.actions.write(
         output = config_file,
@@ -38,6 +59,8 @@ def _doc_theme_impl(ctx):
     asset_files = list(ctx.files.assets)
     if logo:
         asset_files.append(logo)
+    asset_files.extend(pdf_font_files)
+
     assets = depset(asset_files)
     return [
         DefaultInfo(files = depset([config_file], transitive = [assets])),
@@ -70,6 +93,25 @@ doc_theme = rule(
         "logo": attr.label(
             allow_single_file = [".svg"],
             doc = "An SVG logo inlined onto the cover page of packages using this theme.",
+        ),
+        "pdf_font_regular": attr.label(
+            allow_single_file = [".ttf"],
+            doc = "Regular TrueType face embedded in the PDF output as the proportional " +
+                  "body/heading font. When set, the PDF uses it instead of the built-in " +
+                  "core font; the HTML output is unaffected and keeps using the " +
+                  "`typography` font stacks.",
+        ),
+        "pdf_font_bold": attr.label(
+            allow_single_file = [".ttf"],
+            doc = "Bold TrueType face for the PDF output. Falls back to the regular face if unset.",
+        ),
+        "pdf_font_italic": attr.label(
+            allow_single_file = [".ttf"],
+            doc = "Italic TrueType face for the PDF output. Falls back to the regular face if unset.",
+        ),
+        "pdf_font_bold_italic": attr.label(
+            allow_single_file = [".ttf"],
+            doc = "Bold-italic TrueType face for the PDF output. Falls back to the regular face if unset.",
         ),
         "website": attr.string(
             doc = "Company/website URL shown and linked on the cover page.",
