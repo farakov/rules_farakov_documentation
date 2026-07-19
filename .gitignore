@@ -1,0 +1,18 @@
+# Bazel output symlinks.
+bazel-*
+
+# macOS detritus.
+.DS_Store
+
+# Python artifacts.
+__pycache__/
+*.py[cod]
+
+# IDE directories.
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Git merge artifacts.
+*.orig

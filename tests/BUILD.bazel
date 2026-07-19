@@ -1,0 +1,179 @@
+# End-to-end exercise of the public API plus assertions.
+
+load(
+    "@rules_coen_applied_docs//documentation:defs.bzl",
+    "doc_section",
+    "doc_template",
+    "doc_theme",
+    "documentation_package",
+)
+load(":assertions.bzl", "manifest_contains_test", "output_contains_test", "pdf_produced_test")
+
+# --- Theme ----------------------------------------------------------------
+
+doc_theme(
+    name = "corporate_theme",
+    theme_name = "corporate",
+    colors = {
+        "primary": "#0b3d91",
+        "text": "#15202b",
+    },
+    typography = {
+        "heading_font": "Helvetica, Arial, sans-serif",
+    },
+    max_width = "900px",
+)
+
+# --- Template -------------------------------------------------------------
+
+doc_template(
+    name = "assessment_template",
+    template_name = "assessment",
+    theme = ":corporate_theme",
+    show_cover = True,
+    show_toc = True,
+)
+
+# --- Sections -------------------------------------------------------------
+
+doc_section(
+    name = "summary",
+    title = "Executive Summary",
+    srcs = ["content/summary.md"],
+)
+
+doc_section(
+    name = "findings",
+    title = "Findings",
+    srcs = ["content/findings.md"],
+)
+
+# --- Package (via template) ----------------------------------------------
+
+documentation_package(
+    name = "security_assessment",
+    title = "Example Corp Security Assessment",
+    authors = [
+        "A. Tester",
+        "B. Reviewer",
+    ],
+    metadata = {
+        "subtitle": "Web Platform Penetration Test",
+        "version": "1.0",
+        "revision": "final",
+        "date": "2026-02-15",
+    },
+    sections = [
+        ":summary",
+        ":findings",
+    ],
+    template = ":assessment_template",
+)
+
+# --- Package (theme only, no template) -----------------------------------
+
+documentation_package(
+    name = "minimal_doc",
+    title = "Minimal Doc",
+    sections = [":summary"],
+    theme = ":corporate_theme",
+)
+
+# --- Package (branded theme with logo + website) -------------------------
+
+doc_theme(
+    name = "branded_theme",
+    theme_name = "branded",
+    colors = {"primary": "#0f8a5f"},
+    logo = "content/test-logo.svg",
+    website = "https://example.com",
+)
+
+documentation_package(
+    name = "branded_doc",
+    title = "Branded Doc",
+    sections = [":summary"],
+    theme = ":branded_theme",
+)
+
+# --- Package with PDF output ---------------------------------------------
+
+documentation_package(
+    name = "pdf_doc",
+    title = "PDF Doc",
+    metadata = {"date": "2026-01-01", "version": "1.0"},
+    sections = [
+        ":summary",
+        ":findings",
+    ],
+    theme = ":branded_theme",
+    pdf = True,
+)
+
+# --- Assertions -----------------------------------------------------------
+
+output_contains_test(
+    name = "html_has_cover_test",
+    target = ":security_assessment",
+    expected = [
+        "Example Corp Security Assessment",
+        "Web Platform Penetration Test",
+        "class=\"cover\"",
+        "class=\"toc\"",
+        "#0b3d91",
+        "SQL Injection in Search Endpoint",
+        "<table>",
+        "<blockquote>",
+    ],
+)
+
+manifest_contains_test(
+    name = "manifest_test",
+    target = ":security_assessment",
+    expected = [
+        "\"theme\": \"corporate\"",
+        "\"section_count\": 2",
+        "\"package\": \"security_assessment\"",
+    ],
+)
+
+output_contains_test(
+    name = "branded_logo_test",
+    target = ":branded_doc",
+    expected = [
+        "class=\"logo\"",
+        "<svg",
+        "class=\"website\"",
+        "example.com",
+    ],
+)
+
+# Regression: a section title that matches a leading H1 in the source must not
+# produce a duplicate heading. summary.md opens with "# Executive Summary" and
+# the :summary section also sets title = "Executive Summary".
+output_contains_test(
+    name = "no_duplicate_heading_test",
+    target = ":security_assessment",
+    expected_counts = {
+        "<h1 id=\"executive-summary\">Executive Summary</h1>": "1",
+    },
+)
+
+pdf_produced_test(
+    name = "pdf_output_test",
+    target = ":pdf_doc",
+)
+
+# Regression: an ordered list whose items wrap across multiple source lines
+# must render as a single <ol> with continuation lines absorbed, not as several
+# one-item lists each numbered "1".
+output_contains_test(
+    name = "wrapped_list_test",
+    target = ":security_assessment",
+    expected = [
+        "<li>Parameterize all queries and review the data-access layer for any remaining string concatenation.</li>",
+    ],
+    expected_counts = {
+        "<ol>": "1",
+    },
+)

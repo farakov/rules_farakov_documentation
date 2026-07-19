@@ -1,0 +1,88 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate SemVer tag
+        id: semver
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|beta|alpha)\.[0-9]+)?$ ]]; then
+            echo "Tag '$tag' is not SemVer-compatible (expected vMAJOR.MINOR.PATCH[-rc.N|-beta.N|-alpha.N])"
+            exit 1
+          fi
+          version="${tag#v}"
+          echo "tag=$tag" >> $GITHUB_OUTPUT
+          echo "version=$version" >> $GITHUB_OUTPUT
+
+      - name: Build release artifact
+        run: |
+          artifact="rules_coen_applied_docs-${{ steps.semver.outputs.version }}.tar.gz"
+          git archive --format=tar.gz --prefix="rules_coen_applied_docs-${{ steps.semver.outputs.version }}/" -o "$artifact" HEAD
+          sha256sum "$artifact" > "$artifact.sha256"
+          # Bazel's `integrity` field requires a base64-encoded SRI digest
+          # (sha256-<base64>), NOT the hex digest emitted by sha256sum.
+          artifact_sri="$(openssl dgst -sha256 -binary "$artifact" | openssl base64 -A)"
+          echo "artifact=$artifact" >> $GITHUB_ENV
+          echo "artifact_sri=$artifact_sri" >> $GITHUB_ENV
+
+      - name: Extract changelog section
+        id: changelog
+        run: |
+          tag="${{ steps.semver.outputs.tag }}"
+          # Extract the section for the current tag from CHANGELOG.md (Keep-A-Changelog format).
+          awk -v tag="$tag" '
+            BEGIN { in_section=0 }
+            /^## \[/ {
+              if (in_section) exit
+              if ($0 ~ "\\[" substr(tag,2) "\\]" || $0 ~ "\\[" tag "\\]") { in_section=1; next }
+            }
+            in_section { print }
+          ' CHANGELOG.md > release_notes.md || true
+          if [ ! -s release_notes.md ]; then
+            echo "No changelog section for $tag; using commit log instead." > release_notes.md
+            echo "" >> release_notes.md
+            git log --pretty=format:'- %s' "$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null)..HEAD" >> release_notes.md || true
+          fi
+  
+      - name: Emit consumer snippet
+        run: |
+          cat >> release_notes.md <<EOF
+
+          ## Bzlmod integration
+
+          Add to your \`MODULE.bazel\`:
+
+          \`\`\`starlark
+          bazel_dep(name = "rules_coen_applied_docs", version = "${{ steps.semver.outputs.version }}")
+          archive_override(
+              module_name = "rules_coen_applied_docs",
+              urls = ["https://github.com/${{ github.repository }}/releases/download/${{ steps.semver.outputs.tag }}/${{ env.artifact }}"],
+              strip_prefix = "rules_coen_applied_docs-${{ steps.semver.outputs.version }}",
+              integrity = "sha256-${{ env.artifact_sri }}",
+          )
+          \`\`\`
+          EOF
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.semver.outputs.tag }}
+          name: ${{ steps.semver.outputs.tag }}
+          body_path: release_notes.md
+          files: |
+            ${{ env.artifact }}
+            ${{ env.artifact }}.sha256

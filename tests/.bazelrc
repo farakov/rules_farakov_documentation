@@ -1,0 +1,6 @@
+# Bazel configuration for the rules_coen_applied_docs test workspace.
+
+common --enable_bzlmod
+build --incompatible_strict_action_env
+build --nolegacy_external_runfiles
+test --test_output=errors

@@ -1,0 +1,152 @@
+# Changelog
+
+All notable changes to this project are documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+## [0.5.0] - 2026-07-19
+
+### Changed
+
+- **BREAKING:** The ruleset now ships under COEN Applied LLC as
+  `rules_coen_applied_docs`. Consumers on an earlier release must update the
+  module name in their `bazel_dep`/`archive_override` and the
+  `@rules_coen_applied_docs//` prefix on every `load(...)` of
+  `//documentation:defs.bzl`. Rule, macro and attribute names are unchanged,
+  so those two substitutions are a complete migration.
+- The bundled `//company:company_theme` is rebuilt on the COEN Applied brand
+  kit: Off-White on Forest with the brand Green as the single accent, Deep
+  Forest insets, and Avenir Next typography. It previously carried the
+  corporate palette and wordmark of the prior entity.
+- `company_theme` now ships the COEN Applied lockup
+  (`company/assets/coen-applied-logo.svg`, the one-color white variant for
+  dark grounds) and points `website` at `https://coenapplied.com`. The new
+  asset is pure vector, which drops it from ~845 KB to ~4 KB and shrinks
+  every rendered cover page accordingly.
+
+### Removed
+
+- Releases `0.0.0`–`0.4.0` and their tags have been withdrawn. They were
+  published under the project's previous name and are no longer available.
+
+## [0.4.0]
+
+### Added
+
+- `doc_theme` now accepts optional `pdf_font_regular`, `pdf_font_bold`,
+  `pdf_font_italic`, and `pdf_font_bold_italic` TrueType faces. When provided,
+  the PDF backend embeds them and renders all proportional text in that family
+  instead of the built-in Helvetica core font, so the PDF matches the font the
+  HTML output already uses via `typography`. Code blocks stay monospace
+  (Courier). Themes that supply no faces fall back to the core font, so existing
+  themes are unaffected.
+
+## [0.3.1]
+
+### Fixed
+
+- PDF prose (paragraphs, headings, list items, blockquotes) now wraps on word
+  boundaries instead of character boundaries, so words are no longer broken
+  mid-token and punctuation is no longer pushed onto the next line. Code blocks
+  keep character-level wrapping so long URLs and hashes never overflow the page.
+- Underscore emphasis (`_italic_`, `__bold__`) is now recognized in both the
+  HTML and PDF backends. Intraword underscores in identifiers (e.g.
+  `reset_password`, `email_password`) are left literal, matching CommonMark, so
+  they are never accidentally italicized.
+
+## [0.3.0]
+
+### Added
+
+- PDF output now paints the theme's `background` color on every page, so
+  light-on-dark (dark mode) themes render correctly in PDF as well as HTML.
+  White-background themes are unaffected (no redundant fill).
+
+### Changed
+
+- The bundled `//company` theme now matches the corporate website: a clean,
+  restrained dark monochrome palette (near-black surfaces, near-white text,
+  hairline borders) with SF Pro typography and square corners.
+- HTML rendering polish for dark themes: `color-scheme: dark`, underlined links
+  that stay legible without relying on a hue, themed text selection, and
+  square (non-rounded) code/quote/table/TOC surfaces.
+
+## [0.2.3]
+
+### Fixed
+
+- PDF list items (and other blocks) no longer start near the right edge and get
+  clipped. fpdf2's `multi_cell` left the X cursor at the right of a line that
+  filled the width, so the next block began there; all blocks now explicitly
+  return the cursor to the left margin. Adds a unit test guarding this.
+
+## [0.2.2]
+
+### Added
+
+- PDF output now includes a table of contents page (respecting the theme /
+  template `show_toc` flag), matching the HTML output.
+
+### Fixed
+
+- PDF tables now wrap their cell contents instead of overflowing off the right
+  edge of the page; long unbroken tokens in paragraphs, lists, headings and
+  code blocks are also wrapped.
+- Ordered and unordered list items that wrap across multiple source lines now
+  render as a single list with correct numbering, in both HTML and PDF
+  (previously each wrapped item became its own list item numbered "1").
+
+## [0.2.1]
+
+### Fixed
+
+- PDF output is now resilient to consumers that don't register a Python
+  toolchain: the renderer runs under a version-pinned Python 3.12 binary so the
+  pinned wheels (fpdf2 et al.) always resolve.
+- PDF rendering no longer crashes on non-Latin-1 characters (em/en dashes,
+  smart quotes, ellipses, arrows, etc.); they are mapped to safe equivalents,
+  with any remaining unrepresentable characters replaced rather than fatal.
+
+## [0.2.0]
+
+### Added
+
+- `documentation_package` now accepts `pdf = True` to emit a PDF rendering
+  alongside the HTML. PDF generation uses a pure-Python backend (fpdf2), so it
+  stays portable across macOS and CI with no system packages required.
+
+### Fixed
+
+- Sections no longer render a duplicate heading when a `doc_section` `title`
+  matches the leading H1 of its Markdown source; the content heading stands in
+  and the table of contents records a single entry.
+
+## [0.1.0]
+
+### Added
+
+- `doc_theme` now supports a `logo` (inlined SVG) and `website` attribute.
+  Logos are embedded directly into the cover page so rendered HTML remains a
+  single self-contained file; the website is shown and linked on the cover.
+- Company theme (`//company:company_theme`) ships the corporate logo and website.
+
+## [0.0.0]
+
+### Added
+
+- Initial implementation of the documentation ruleset.
+- `doc_theme` rule: declares reusable typography, colors, layout policy, and
+  bundled assets; normalizes to a stable JSON config.
+- `doc_section` rule: declares ordered, reusable Markdown sections.
+- `doc_template` rule: bundles a default theme with package layout policy
+  (cover page, table of contents).
+- `documentation_package` rule: composes sections, applies a theme/template,
+  and renders a single themed HTML document plus a JSON manifest.
+- Hermetic, standard-library-only Python renderer supporting headings,
+  emphasis, inline/fenced code, lists, blockquotes, links, images, horizontal
+  rules, and tables; emits an auto-generated table of contents and cover page.
+- `tests/` workspace consuming the ruleset via `local_path_override` with an
+  end-to-end security-assessment example and HTML/manifest assertion tests.

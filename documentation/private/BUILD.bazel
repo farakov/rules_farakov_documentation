@@ -1,0 +1,35 @@
+# Implementation-detail tools. Not part of the public API.
+
+load("@python_3_12//:defs.bzl", "py_binary", "py_test")
+load("@rules_python//python:defs.bzl", "py_library")
+load("@rfd_pip//:requirements.bzl", "requirement")
+
+package(default_visibility = ["//visibility:public"])
+
+# Use the version-pinned py_binary so the renderer always runs under Python
+# 3.12 regardless of the consumer's default toolchain. This keeps it matched to
+# the 3.12 wheels resolved by the rfd_pip hub (fpdf2 et al.).
+py_binary(
+    name = "render",
+    srcs = ["render.py"],
+    main = "render.py",
+    deps = [
+        requirement("fpdf2"),
+    ],
+)
+
+py_test(
+    name = "render_pdf_test",
+    size = "small",
+    srcs = ["render_pdf_test.py"],
+    deps = [
+        requirement("fpdf2"),
+        ":render_lib",
+    ],
+)
+
+py_library(
+    name = "render_lib",
+    srcs = ["render.py"],
+    imports = ["."],
+)

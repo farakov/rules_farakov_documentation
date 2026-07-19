@@ -1,0 +1,98 @@
+# Company-standard theme, template, and reusable disclosure sections.
+#
+# Consumers should generally use the `responsible_disclosure` macro from
+# //company:defs.bzl rather than depending on these targets directly, but the
+# targets are public so bespoke documents can compose them as needed.
+
+load(
+    "@rules_coen_applied_docs//documentation:defs.bzl",
+    "doc_section",
+    "doc_template",
+    "doc_theme",
+)
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files(["defs.bzl"])
+
+# --- Standard corporate theme --------------------------------------------
+
+# Dark corporate theme built from the COEN Applied brand kit.
+#
+# The palette is the brand's forest-green system applied to a dark surface:
+# Forest ground, Off-White text, and the brand Green reserved as the single
+# accent for headings, rules and links. The look stays clean and restrained
+# rather than flashy. Typography follows the brand: Avenir Next with a
+# system-sans fallback.
+doc_theme(
+    name = "company_theme",
+    theme_name = "company",
+    colors = {
+        # Off-White on Forest: the brand's primary dark pairing.
+        "text": "#f1f3f4",
+        "background": "#1e3a1d",
+        # Brand Green. Used for headings, rules and links — the one hue that
+        # carries accent weight against the forest ground.
+        "primary": "#6bda78",
+        # Mint: secondary text, captions, the cover meta line. Chosen over the
+        # brand's Sage, which is too close to Forest to stay legible on it.
+        "muted": "#a7dba8",
+        # A hairline divider — Forest lifted just enough to read as a rule.
+        "border": "#2c4a2b",
+        # Deep Forest: the brand's inset tone, for code, quotes, TOC and
+        # table heads.
+        "code_bg": "#152e15",
+    },
+    typography = {
+        "heading_font": "'Avenir Next', 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif",
+        "body_font": "'Avenir Next', 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif",
+        "mono_font": "ui-monospace, 'SF Mono', Menlo, Consolas, monospace",
+    },
+    max_width = "880px",
+    logo = "assets/coen-applied-logo.svg",
+    website = "https://coenapplied.com",
+    show_cover = True,
+    show_toc = True,
+)
+
+# --- Responsible-disclosure template -------------------------------------
+
+doc_template(
+    name = "disclosure_template",
+    template_name = "responsible-disclosure",
+    theme = ":company_theme",
+    show_cover = True,
+    show_toc = True,
+)
+
+# --- Reusable disclosure boilerplate sections ----------------------------
+
+doc_section(
+    name = "sec_policy",
+    title = "Responsible Disclosure Policy",
+    srcs = ["disclosure/policy.md"],
+)
+
+doc_section(
+    name = "sec_scope",
+    title = "Scope",
+    srcs = ["disclosure/scope.md"],
+)
+
+doc_section(
+    name = "sec_reporting",
+    title = "Reporting Process",
+    srcs = ["disclosure/reporting.md"],
+)
+
+doc_section(
+    name = "sec_severity",
+    title = "Severity Scale",
+    srcs = ["disclosure/severity.md"],
+)
+
+doc_section(
+    name = "sec_safe_harbor",
+    title = "Safe Harbor",
+    srcs = ["disclosure/safe_harbor.md"],
+)

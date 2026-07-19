@@ -1,0 +1,18 @@
+# Worked example: a complete responsible-disclosure document assembled from the
+# company-standard theme, template, and boilerplate via the macro.
+
+load("//company:defs.bzl", "responsible_disclosure")
+
+package(default_visibility = ["//visibility:public"])
+
+responsible_disclosure(
+    name = "acme_disclosure",
+    title = "ACME Corp Responsible Disclosure",
+    org_name = "ACME Corp",
+    authors = ["Security Team"],
+    metadata = {
+        "version": "2.0",
+        "date": "2026-03-01",
+    },
+    pdf = True,
+)

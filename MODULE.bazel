@@ -1,0 +1,51 @@
+"""Bzlmod module definition for rules_coen_applied_docs.
+
+Dependency versions are pinned. Bumping any pinned version is a
+deliberate release-bearing change.
+"""
+
+module(
+    name = "rules_coen_applied_docs",
+    version = "0.5.0",
+)
+
+# --- Pinned toolchains ---------------------------------------------------
+
+bazel_dep(name = "rules_oci", version = "2.2.6")
+bazel_dep(name = "rules_pkg", version = "1.1.0")
+
+# --- Ancillary infrastructure (not consumer-visible) ---------------------
+
+# Required by our stardoc targets and the test workspace. The resolved
+# version comes from the graph (currently 1.9.0 via rules_python 1.7.0).
+bazel_dep(name = "bazel_skylib", version = "1.9.0")
+
+bazel_dep(name = "rules_python", version = "1.7.0")
+
+# --- Python toolchain (private use only) --------------------------------
+
+python = use_extension(
+    "@rules_python//python/extensions:python.bzl",
+    "python",
+)
+python.toolchain(
+    is_default = True,
+    python_version = "3.12",
+)
+use_repo(python, "python_3_12", "python_3_12_host")
+
+register_toolchains("@python_3_12_host//:all")
+
+# --- Pinned Python dependencies for the PDF backend ----------------------
+#
+# fpdf2 is a pure-Python PDF library (its only platform-specific dependency,
+# Pillow, ships prebuilt wheels for all supported platforms), so the renderer
+# stays portable across macOS and CI with no system packages required.
+
+pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
+pip.parse(
+    hub_name = "rfd_pip",
+    python_version = "3.12",
+    requirements_lock = "//:requirements_lock.txt",
+)
+use_repo(pip, "rfd_pip")
